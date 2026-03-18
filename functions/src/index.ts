@@ -1,38 +1,28 @@
-
+import { Request, Response } from "express";
+import * as functions from "firebase-functions";
 import express from "express";
 import admin from "firebase-admin";
-import dotenv from "dotenv";
 import { OAuth2Client } from "google-auth-library";
+import cors from "cors";
 
-dotenv.config();
-
-// Initialize Firebase Admin SDK
-const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-if (serviceAccountKey) {
-  const serviceAccount = JSON.parse(serviceAccountKey);
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
-    });
-  }
-}
+admin.initializeApp();
 
 const db = admin.firestore();
 const app = express();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 // API Routes
-app.get("/api/menu", async (req, res) => {
+app.get("/menu", async (req: Request, res: Response) => {
   const menuSnapshot = await db.collection("menu").get();
   const menuItems = menuSnapshot.docs.map((doc) => doc.data());
   res.json(menuItems);
 });
 
-app.post("/api/menu", async (req, res) => {
+app.post("/menu", async (req: Request, res: Response) => {
   const newItem = {
     id: Date.now().toString(),
     ...req.body,
@@ -41,7 +31,7 @@ app.post("/api/menu", async (req, res) => {
   res.json(newItem);
 });
 
-app.delete("/api/menu", async (req, res) => {
+app.delete("/menu", async (req: Request, res: Response) => {
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
     res.status(400).json({ error: "Missing id" });
@@ -51,13 +41,17 @@ app.delete("/api/menu", async (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/api/menu/:id", async (req, res) => {
-  await db.collection("menu").doc(req.params.id).delete();
-  res.json({ success: true });
+app.delete("/menu/:id", async (req: Request, res: Response) => {
+  const id = req.params.id;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: "Invalid id" });
+  }
+  await db.collection("menu").doc(id).delete();
+  return res.json({ success: true });
 });
 
 // Auth routes
-app.post("/api/auth/google", async (req, res) => {
+app.post("/auth/google", async (req: Request, res: Response) => {
   const { credential } = req.body;
   try {
     const ticket = await client.verifyIdToken({
@@ -66,12 +60,14 @@ app.post("/api/auth/google", async (req, res) => {
     });
     const payload = ticket.getPayload();
     if (!payload) {
-      res.status(400).json({ error: "Invalid credential" });
-      return;
+      return res.status(400).json({ error: "Invalid credential" });
     }
     const { sub: id, email, name, picture } = payload;
 
-    const userRef = db.collection("users").doc(email as string);
+    if (!email) {
+      return res.status(400).json({ error: "Email not found in credential" });
+    }
+    const userRef = db.collection("users").doc(email);
     const user = await userRef.get();
 
     if (!user.exists) {
@@ -80,10 +76,10 @@ app.post("/api/auth/google", async (req, res) => {
       return res.json(newUser);
     }
 
-    res.json(user.data());
+    return res.json(user.data());
   } catch (error) {
-    res.status(400).json({ error: "Invalid credential" });
+    return res.status(400).json({ error: "Invalid credential" });
   }
 });
 
-export default app;
+export const api = functions.https.onRequest(app);
