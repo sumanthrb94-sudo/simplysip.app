@@ -391,7 +391,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     const location = user?.location || 'N/A';
     const accuracyText = user?.locationAccuracy ? ` (accuracy ${user.locationAccuracy}m)` : "";
     const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${location}${accuracyText}\nOrder via WhatsApp.`;
-    const whatsappUrl = `https://wa.me/917799934943?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/917306928735?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
 
     setOrderId(null);
