@@ -30,6 +30,23 @@ const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 app.use(express.json());
 
+const authenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.split("Bearer ")[1] : null;
+
+  if (!token) {
+    return res.status(401).json({ error: "Missing or invalid authorization token." });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    (req as any).user = decoded;
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+};
+
 // API Routes
 app.get("/api/menu", async (req, res) => {
   const menuSnapshot = await db.collection("menu").get();
@@ -44,7 +61,7 @@ app.get("/api/menu", async (req, res) => {
   res.json(menuItems);
 });
 
-app.post("/api/menu", async (req, res) => {
+app.post("/api/menu", authenticate, async (req, res) => {
   const newItem = {
     id: Date.now().toString(),
     ...req.body,
@@ -53,7 +70,7 @@ app.post("/api/menu", async (req, res) => {
   res.json(newItem);
 });
 
-app.delete("/api/menu", async (req, res) => {
+app.delete("/api/menu", authenticate, async (req, res) => {
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
     res.status(400).json({ error: "Missing id" });
@@ -63,7 +80,7 @@ app.delete("/api/menu", async (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/api/menu/:id", async (req, res) => {
+app.delete("/api/menu/:id", authenticate, async (req, res) => {
   await db.collection("menu").doc(req.params.id).delete();
   res.json({ success: true });
 });

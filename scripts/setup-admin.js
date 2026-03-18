@@ -13,6 +13,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getDatabase, ref, set } from 'firebase/database';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { readFileSync } from 'fs';
 import { createInterface } from 'readline';
 
@@ -41,6 +42,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const firestore = getFirestore(app);
 
 const rl = createInterface({
   input: process.stdin,
@@ -67,6 +69,7 @@ async function setupAdmin() {
 
     console.log('📝 Adding admin privileges...');
     await set(ref(db, `admins/${uid}`), true);
+    await setDoc(doc(firestore, "admins", uid), { admin: true });
 
     console.log('✅ Admin setup complete!');
     console.log(`📧 Admin Email: ${adminEmail}`);

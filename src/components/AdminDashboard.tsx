@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { collection, onSnapshot, doc, getDocs, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
 
 type OrderFilter = "all" | "pending" | "paid" | "delivered" | "cancelled";
@@ -48,6 +48,13 @@ const normalizeTimestamp = (value: any) => {
 };
 
 export default function AdminDashboard({ onBack }: { onBack: () => void }) {
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  // Ensure the UI always starts from the top of the page when opening the admin dashboard.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const [items, setItems] = useState<any[]>(
     seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item }))
   );
@@ -71,6 +78,27 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
     notes: ""
   });
   const hasLoadedOrders = useRef(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setIsAuthorized(false);
+        return;
+      }
+
+      try {
+        const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
+        setIsAuthorized(adminSnap.exists());
+      } catch (err) {
+        console.error("Admin status check failed:", err);
+        setIsAuthorized(false);
+      }
+    };
+
+    checkAdmin();
+  }, []);
+
   const seenOrderIds = useRef<Set<string>>(new Set());
   const hasAutoSeeded = useRef(false);
   const [menuError, setMenuError] = useState<string | null>(null);
@@ -529,6 +557,34 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
       setLocalMockOrders((prev) => prev.filter((order) => order.id !== id));
     }
   };
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-12 bg-[#F5F5F7]">
+        <div className="max-w-md bg-white rounded-3xl p-10 shadow-lg text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+          <p className="text-sm text-gray-600">You do not have permission to view the admin dashboard. Please log in with an admin account.</p>
+          <button
+            onClick={onBack}
+            className="mt-6 px-6 py-3 bg-black text-white rounded-full font-semibold"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-12 bg-[#F5F5F7]">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 border-4 border-black/10 border-t-black rounded-full mx-auto" />
+          <p className="mt-4 text-gray-600">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] p-6 md:p-12">

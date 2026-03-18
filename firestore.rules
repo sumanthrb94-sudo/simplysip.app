@@ -2,8 +2,44 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Users can read/write their own profile.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    // Admin list is only readable/updatable by admins.
+    match /admins/{uid} {
+      allow read, write: if isAdmin();
+    }
+
+    // Menu is publicly readable; only admins can modify.
+    match /menu/{menuId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Orders: users can create their own orders; users can read their own orders; admins can manage all.
+    match /orders/{orderId} {
+      function validOrder() {
+        return request.resource.data.keys().hasAll(["userId", "userEmail", "items", "subtotal", "deliveryFee", "total", "paymentStatus", "orderStatus", "createdAt"]);
+      }
+
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && validOrder();
+      allow read: if resource.data.userId == request.auth.uid || isAdmin();
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -34,7 +34,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null);
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [localUserOrders, setLocalUserOrders] = useState<Order[]>([]);
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const cartCount = Object.values(cart).reduce((sum: number, qty: number) => sum + qty, 0);
   const subscriptionTotal =
@@ -109,9 +109,19 @@ export default function App() {
       setUser(currentUser);
       if (currentUser) {
         setIsAuthOpen(false);
+        (async () => {
+          try {
+            const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
+            setIsAdmin(adminSnap.exists());
+          } catch (err) {
+            console.warn("Failed to load admin status:", err);
+            setIsAdmin(false);
+          }
+        })();
       } else {
         setIsAdminOpen(false);
         setIsCartHydrated(false);
+        setIsAdmin(false);
         setUserProfile(null);
         setCart({});
         window.localStorage.removeItem("simplysip_cart");
@@ -489,7 +499,10 @@ export default function App() {
             <footer className="py-12 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
               <p>(c) 2026 SIMPLY SIP. All rights reserved. 
                 <button 
-                  onClick={() => setIsAdminOpen(true)} 
+                  onClick={() => {
+                    if (!isAdmin) return;
+                    setIsAdminOpen(true);
+                  }}
                   className={`transition-opacity ml-2 font-bold ${isAdmin ? 'opacity-100 text-black' : 'opacity-0 hover:opacity-100'}`}
                 >
                   Admin
