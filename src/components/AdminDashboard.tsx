@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { get, onValue, push, ref, remove, set, update } from 'firebase/database';
+import { collection, onSnapshot, doc, getDocs, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
 
@@ -13,12 +13,6 @@ type OrderFormState = {
   deliverySlot: string;
   assignedRider: string;
   notes: string;
-};
-
-const snapshotToArray = (snapshot: any) => {
-  const val = snapshot.val();
-  if (!val) return [];
-  return Object.entries(val).map(([id, data]) => ({ id, ...(data as any) }));
 };
 
 const mergeOrders = (dbOrders: any[], mockOrders: any[]) => {
@@ -109,8 +103,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
     try {
       await Promise.all(
         seedMenu.map((item) => {
-          const newRef = push(ref(db, "menu"));
-          return set(newRef, { ...item, createdAt: Date.now() });
+          return addDoc(collection(db, "menu"), { ...item, createdAt: Date.now() });
         })
       );
     } catch (err) {
@@ -121,11 +114,11 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
   };
 
   useEffect(() => {
-    const menuRef = ref(db, "menu");
-    const unsubscribeMenu = onValue(
+    const menuRef = collection(db, "menu");
+    const unsubscribeMenu = onSnapshot(
       menuRef,
       (snapshot) => {
-        const data = snapshotToArray(snapshot);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setItems(data.length > 0 ? data : seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item })));
         setMenuError(null);
         setLoading(false);
@@ -141,9 +134,9 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
       }
     );
 
-    const ordersRef = ref(db, "orders");
-    const unsubscribeOrders = onValue(ordersRef, (snapshot) => {
-      const data = snapshotToArray(snapshot).sort((a: any, b: any) => {
+    const ordersRef = collection(db, "orders");
+    const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => {
         const aTime = normalizeTimestamp(a.createdAt ?? a.updatedAt) || 0;
         const bTime = normalizeTimestamp(b.createdAt ?? b.updatedAt) || 0;
         return bTime - aTime;
@@ -162,12 +155,11 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
       hasLoadedOrders.current = true;
     });
 
-    const usersRef = ref(db, "users");
-    const unsubscribeUsers = onValue(
+    const usersRef = collection(db, "users");
+    const unsubscribeUsers = onSnapshot(
       usersRef,
       (snapshot) => {
-        const val = snapshot.val();
-        setTotalUsers(val ? Object.keys(val).length : 0);
+        setTotalUsers(snapshot.docs.length);
         setUserCountError(false);
         setStatsLoading(false);
       },
@@ -198,20 +190,19 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
     const refreshNow = async () => {
       try {
         const [menuSnap, ordersSnap, usersSnap] = await Promise.all([
-          get(ref(db, "menu")),
-          get(ref(db, "orders")),
-          get(ref(db, "users"))
+          getDocs(collection(db, "menu")),
+          getDocs(collection(db, "orders")),
+          getDocs(collection(db, "users"))
         ]);
-        const menuData = snapshotToArray(menuSnap);
-      const ordersData = snapshotToArray(ordersSnap).sort((a: any, b: any) => {
-        const aTime = normalizeTimestamp(a.createdAt ?? a.updatedAt) || 0;
-        const bTime = normalizeTimestamp(b.createdAt ?? b.updatedAt) || 0;
-        return bTime - aTime;
-      });
-      const usersVal = usersSnap.val();
+        const menuData = menuSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const ordersData = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => {
+          const aTime = normalizeTimestamp(a.createdAt ?? a.updatedAt) || 0;
+          const bTime = normalizeTimestamp(b.createdAt ?? b.updatedAt) || 0;
+          return bTime - aTime;
+        });
         setItems(menuData.length > 0 ? menuData : seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item })));
         setOrders(ordersData);
-        setTotalUsers(usersVal ? Object.keys(usersVal).length : 0);
+        setTotalUsers(usersSnap.docs.length);
       } catch (err) {
         console.error("Manual refresh failed:", err);
       }
@@ -347,9 +338,9 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
         }
       };
       const payload = mockOrders[key];
-      const newRef = push(ref(db, "orders"));
+      const newRef = doc(collection(db, "orders"));
       setLocalMockOrders((prev) => {
-        const next = [{ id: newRef.key, ...payload }, ...prev];
+        const next = [{ id: newRef.id, ...payload }, ...prev];
         const seen = new Set<string>();
         return next.filter((order) => {
           if (!order || !order.id) return false;
@@ -358,7 +349,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
           return true;
         });
       });
-      await set(newRef, payload);
+      await setDoc(newRef, payload);
     } catch (err) {
       console.error("Failed to create test order:", err);
       setTestOrderError(err instanceof Error ? err.message : "Failed to create test order.");
@@ -468,7 +459,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
         notes: orderForm.notes,
         updatedAt: Date.now()
       };
-      await update(ref(db, `orders/${selectedOrder.id}`), payload);
+      await updateDoc(doc(db, "orders", selectedOrder.id), payload);
       setOrders((prev) =>
         prev.map((order) => (order.id === selectedOrder.id ? { ...order, ...payload } : order))
       );
@@ -501,8 +492,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
       return;
     }
     try {
-      const newRef = push(ref(db, "menu"));
-      await set(newRef, {
+      await addDoc(collection(db, "menu"), {
         name,
         desc,
         image,
@@ -524,7 +514,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
 
   const handleDeleteMenu = async (id: string) => {
     try {
-      await remove(ref(db, `menu/${id}`));
+      await deleteDoc(doc(db, "menu", id));
     } catch (err) {
       console.error(err);
     }
@@ -532,7 +522,7 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
 
   const handleDeleteOrder = async (id: string) => {
     try {
-      await remove(ref(db, `orders/${id}`));
+      await deleteDoc(doc(db, "orders", id));
     } catch (err) {
       console.error(err);
     } finally {
