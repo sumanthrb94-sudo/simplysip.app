@@ -1,0 +1,84 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "cart": {
+          ".validate": "newData.isObject() && (!newData.exists() || newData.keys().every(key => newData.get(key).isNumber() && newData.get(key) >= 0 && newData.get(key) <= 99))"
+        },
+        "cartUpdatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 300000"
+        },
+        "cartVersion": {
+          ".validate": "newData.isNumber()"
+        },
+        ".validate": "newData.hasChildren(['cart', 'cartUpdatedAt', 'cartVersion']) || !newData.exists()"
+      }
+    },
+    "orders": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$orderId": {
+        ".validate": "newData.hasChildren(['userId', 'userEmail', 'items', 'subtotal', 'deliveryFee', 'total', 'paymentStatus', 'orderStatus', 'createdAt'])",
+        "userId": {
+          ".validate": "newData.val() === auth.uid"
+        },
+        "userEmail": {
+          ".validate": "newData.val() === auth.token.email"
+        },
+        "items": {
+          ".validate": "newData.isObject() && newData.keys().size() > 0 && newData.keys().every(key => newData.get(key).hasChildren(['id', 'name', 'qty', 'price']) && newData.get(key).child('qty').isNumber() && newData.get(key).child('qty').val() > 0 && newData.get(key).child('price').isNumber() && newData.get(key).child('price').val() > 0)"
+        },
+        "subtotal": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "deliveryFee": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "total": {
+          ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 50000"
+        },
+        "paymentStatus": {
+          ".validate": "newData.val() === 'paid' || newData.val() === 'unpaid' || newData.val() === 'refunded' || newData.val() === 'failed'"
+        },
+        "orderStatus": {
+          ".validate": "newData.val() === 'pending' || newData.val() === 'confirmed' || newData.val() === 'preparing' || newData.val() === 'out-for-delivery' || newData.val() === 'delivered' || newData.val() === 'cancelled'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 300000 && newData.val() >= now - 86400000"
+        },
+        ".write": "newData.exists() && (!data.exists() || data.child('userId').val() === auth.uid || root.child('admins').child(auth.uid).exists())"
+      }
+    },
+    "menu": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).exists()",
+      "$itemId": {
+        ".validate": "newData.hasChildren(['name', 'category', 'mrp', 'offerPrice'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 100"
+        },
+        "category": {
+          ".validate": "newData.val() === 'Signature Blends' || newData.val() === 'Single Fruit Series'"
+        },
+        "mrp": {
+          ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000"
+        },
+        "offerPrice": {
+          ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= newData.parent().child('mrp').val()"
+        }
+      }
+    },
+    "admins": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
+      ".write": "auth != null && root.child('admins').child(auth.uid).exists()",
+      "$adminUid": {
+        ".validate": "newData.isBoolean() && newData.val() === true",
+        ".write": "auth != null && root.child('admins').child(auth.uid).exists()"
+      }
+    }
+  }
+}
