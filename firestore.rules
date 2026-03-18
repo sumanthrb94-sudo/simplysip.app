@@ -20,9 +20,10 @@ service cloud.firestore {
       allow read, write: if isOwner(uid) || isAdmin();
     }
 
-    // Admin list is only readable/updatable by admins.
+    // Admin list: users can read their own admin doc to verify; only admins can update.
     match /admins/{uid} {
-      allow read, write: if isAdmin();
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if isAdmin();
     }
 
     // Menu is publicly readable; only admins can modify.

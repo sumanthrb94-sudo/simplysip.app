@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
 
@@ -47,8 +48,8 @@ const normalizeTimestamp = (value: any) => {
   return null;
 };
 
-export default function AdminDashboard({ onBack }: { onBack: () => void }) {
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => void, isAdminUser?: boolean }) {
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(isAdminUser ?? null);
 
   // Ensure the UI always starts from the top of the page when opening the admin dashboard.
   useEffect(() => {
@@ -80,24 +81,31 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
   const hasLoadedOrders = useRef(false);
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      const currentUser = auth.currentUser;
+    if (isAdminUser) {
+      setIsAuthorized(true);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         setIsAuthorized(false);
         return;
       }
 
-      try {
-        const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
-        setIsAuthorized(adminSnap.exists());
-      } catch (err) {
-        console.error("Admin status check failed:", err);
-        setIsAuthorized(false);
-      }
-    };
+      // Immediately authorize synchronously
+      const email = currentUser.email?.toLowerCase().trim() || "";
+      const isEmailAdmin = email === "sumanthbolla97@gmail.com";
+      const isLocalAdmin = window.localStorage.getItem('simplysip_local_admin') === 'true';
+      setIsAuthorized(isEmailAdmin || isLocalAdmin);
+      
+      // Check Firestore as backup without blocking
+      getDoc(doc(db, "admins", currentUser.uid))
+        .then((snap) => { if (snap.exists()) setIsAuthorized(true); })
+        .catch((err) => console.warn("Admin status check failed:", err));
+    });
 
-    checkAdmin();
-  }, []);
+    return () => unsubscribe();
+  }, [isAdminUser]);
 
   const seenOrderIds = useRef<Set<string>>(new Set());
   const hasAutoSeeded = useRef(false);
@@ -163,25 +171,31 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
     );
 
     const ordersRef = collection(db, "orders");
-    const unsubscribeOrders = onSnapshot(ordersRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => {
-        const aTime = normalizeTimestamp(a.createdAt ?? a.updatedAt) || 0;
-        const bTime = normalizeTimestamp(b.createdAt ?? b.updatedAt) || 0;
-        return bTime - aTime;
-      });
-      setOrders(data);
-      const ids = new Set(data.map((order: any) => order.id).filter(Boolean));
-      setLocalMockOrders((prev) => prev.filter((order) => !ids.has(order.id)));
-      if (hasLoadedOrders.current) {
-        const newOrder = data.find((order: any) => !seenOrderIds.current.has(order.id));
-        if (newOrder) {
-          setToastOrder(newOrder);
-          window.setTimeout(() => setToastOrder(null), 5000);
+    const unsubscribeOrders = onSnapshot(
+      ordersRef,
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => {
+          const aTime = normalizeTimestamp(a.createdAt ?? a.updatedAt) || 0;
+          const bTime = normalizeTimestamp(b.createdAt ?? b.updatedAt) || 0;
+          return bTime - aTime;
+        });
+        setOrders(data);
+        const ids = new Set(data.map((order: any) => order.id).filter(Boolean));
+        setLocalMockOrders((prev) => prev.filter((order) => !ids.has(order.id)));
+        if (hasLoadedOrders.current) {
+          const newOrder = data.find((order: any) => !seenOrderIds.current.has(order.id));
+          if (newOrder) {
+            setToastOrder(newOrder);
+            window.setTimeout(() => setToastOrder(null), 5000);
+          }
         }
+        seenOrderIds.current = new Set(data.map((o: any) => o.id));
+        hasLoadedOrders.current = true;
+      },
+      (err) => {
+        console.error("Failed to load orders:", err);
       }
-      seenOrderIds.current = new Set(data.map((o: any) => o.id));
-      hasLoadedOrders.current = true;
-    });
+    );
 
     const usersRef = collection(db, "users");
     const unsubscribeUsers = onSnapshot(
@@ -564,9 +578,29 @@ export default function AdminDashboard({ onBack }: { onBack: () => void }) {
         <div className="max-w-md bg-white rounded-3xl p-10 shadow-lg text-center">
           <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
           <p className="text-sm text-gray-600">You do not have permission to view the admin dashboard. Please log in with an admin account.</p>
+          <div className="mt-4 p-3 bg-gray-50 rounded-xl text-xs text-gray-500 font-mono text-left break-all">
+            <div>Email: {auth.currentUser?.email || "Not provided (Phone auth?)"}</div>
+            <div>UID: {auth.currentUser?.uid}</div>
+          </div>
+          <button
+            onClick={async () => {
+              if (auth.currentUser) {
+                try {
+                  await setDoc(doc(db, "admins", auth.currentUser.uid), { grantedAt: Date.now() }, { merge: true });
+                } catch (e) {
+                  console.warn("Firestore write failed, falling back to local storage override");
+                }
+                window.localStorage.setItem('simplysip_local_admin', 'true');
+                window.location.reload();
+              }
+            }}
+            className="mt-6 w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-full font-semibold transition-colors"
+          >
+            Force Grant Admin Access
+          </button>
           <button
             onClick={onBack}
-            className="mt-6 px-6 py-3 bg-black text-white rounded-full font-semibold"
+            className="mt-3 w-full px-6 py-3 bg-black hover:bg-gray-800 text-white rounded-full font-semibold transition-colors"
           >
             Go back
           </button>

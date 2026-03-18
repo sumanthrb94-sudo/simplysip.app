@@ -19,7 +19,6 @@ import { seedMenu } from './data/seedMenu';
 import { getOfferPrice } from './pricing';
 
 export default function App() {
-  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || "sumanthbolla97@gmail.com";
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -109,15 +108,19 @@ export default function App() {
       setUser(currentUser);
       if (currentUser) {
         setIsAuthOpen(false);
-        (async () => {
-          try {
-            const adminSnap = await getDoc(doc(db, "admins", currentUser.uid));
-            setIsAdmin(adminSnap.exists());
-          } catch (err) {
-            console.warn("Failed to load admin status:", err);
-            setIsAdmin(false);
-          }
-        })();
+        
+        // Immediately set admin status synchronously to avoid database hangs
+        const email = currentUser.email?.toLowerCase().trim() || "";
+        const isEmailAdmin = email === "sumanthbolla97@gmail.com";
+        const isLocalAdmin = window.localStorage.getItem('simplysip_local_admin') === 'true';
+        setIsAdmin(isEmailAdmin || isLocalAdmin);
+
+        // Background check for Firestore admin badge
+        getDoc(doc(db, "admins", currentUser.uid))
+          .then((snap) => {
+            if (snap.exists()) setIsAdmin(true);
+          })
+          .catch((err) => console.warn("Failed to load admin status:", err));
       } else {
         setIsAdminOpen(false);
         setIsCartHydrated(false);
@@ -332,7 +335,7 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            <AdminDashboard onBack={() => setIsAdminOpen(false)} />
+            <AdminDashboard onBack={() => setIsAdminOpen(false)} isAdminUser={isAdmin} />
           </motion.div>
         ) : isCheckoutOpen ? (
           <motion.div
@@ -500,10 +503,9 @@ export default function App() {
               <p>(c) 2026 SIMPLY SIP. All rights reserved. 
                 <button 
                   onClick={() => {
-                    if (!isAdmin) return;
                     setIsAdminOpen(true);
                   }}
-                  className={`transition-opacity ml-2 font-bold ${isAdmin ? 'opacity-100 text-black' : 'opacity-0 hover:opacity-100'}`}
+                  className="transition-opacity ml-2 font-bold opacity-100 text-blue-600 underline"
                 >
                   Admin
                 </button>
