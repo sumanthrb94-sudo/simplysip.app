@@ -19,7 +19,7 @@ import { seedMenu } from './data/seedMenu';
 import { getOfferPrice } from './pricing';
 
 export default function App() {
-  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || "admin@simplysip.com";
+  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || "sumanthbolla97@gmail.com";
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -34,7 +34,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null);
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [localUserOrders, setLocalUserOrders] = useState<Order[]>([]);
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL;
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const cartCount = Object.values(cart).reduce((sum: number, qty: number) => sum + qty, 0);
   const subscriptionTotal =
@@ -487,7 +487,14 @@ export default function App() {
 
             {/* Hidden Admin Trigger in Footer */}
             <footer className="py-12 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
-              <p>(c) 2026 SIMPLY SIP. All rights reserved. <button onClick={() => setIsAdminOpen(true)} className="opacity-0 hover:opacity-100 transition-opacity ml-2">Admin</button></p>
+              <p>(c) 2026 SIMPLY SIP. All rights reserved. 
+                <button 
+                  onClick={() => setIsAdminOpen(true)} 
+                  className={`transition-opacity ml-2 font-bold ${isAdmin ? 'opacity-100 text-black' : 'opacity-0 hover:opacity-100'}`}
+                >
+                  Admin
+                </button>
+              </p>
             </footer>
           </motion.div>
         )}
