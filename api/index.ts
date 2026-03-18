@@ -1,24 +1,25 @@
+
 import express from "express";
-import { createServer as createViteServer } from "vite";
-import path from "path";
-import { createSeedMenu, MenuItem } from "./data/menu";
-import { OAuth2Client } from "google-auth-library";
 import admin from "firebase-admin";
+import dotenv from "dotenv";
+import { OAuth2Client } from "google-auth-library";
+
+dotenv.config();
 
 // Initialize Firebase Admin SDK
-const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string
-);
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
-});
+const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+if (serviceAccountKey) {
+  const serviceAccount = JSON.parse(serviceAccountKey);
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
+    });
+  }
+}
 
 const db = admin.firestore();
 const app = express();
-const DEFAULT_PORT = 3000;
-const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
@@ -28,13 +29,6 @@ app.use(express.json());
 app.get("/api/menu", async (req, res) => {
   const menuSnapshot = await db.collection("menu").get();
   const menuItems = menuSnapshot.docs.map((doc) => doc.data());
-  if (menuItems.length === 0) {
-    const seedMenu = createSeedMenu();
-    for (const item of seedMenu) {
-      await db.collection("menu").doc(item.id).set(item);
-    }
-    return res.json(seedMenu);
-  }
   res.json(menuItems);
 });
 
@@ -92,40 +86,4 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
-
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*all", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  const listenWithRetry = (port: number, retries = 10) => {
-    const server = app.listen(port, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${port}`);
-    });
-
-    server.on("error", (err: NodeJS.ErrnoException) => {
-      if (err.code === "EADDRINUSE" && retries > 0) {
-        const nextPort = port + 1;
-        console.log(`Port ${port} in use, trying ${nextPort}...`);
-        server.close(() => listenWithRetry(nextPort, retries - 1));
-        return;
-      }
-      console.error(err);
-      process.exit(1);
-    });
-  };
-
-  listenWithRetry(PORT);
-}
-
-startServer();
+export default app;

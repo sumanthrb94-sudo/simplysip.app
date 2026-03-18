@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { push, ref, set } from 'firebase/database';
+import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Product, SubscriptionProduct, Order, UserProfile } from '../types';
 import { getMrp, getOfferPrice } from '../pricing';
@@ -310,7 +310,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       const simulatedOrderId = `order_${Date.now()}`;
 
       const options = {
-        key: 'rzp_test_your_test_key_here', // Replace with actual test key
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_test_key_here',
         amount: grandTotal * 100,
         currency: 'INR',
         name: 'Simply Sip',
@@ -322,8 +322,6 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
           
           // Now save the order with verified payment
           const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
-          const newRef = push(ref(db, "orders"));
-          const orderId = newRef.key;
           const orderData: Omit<Order, 'id'> = {
             userId: user?.uid || null,
             userEmail: user?.email || null,
@@ -355,7 +353,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
             createdAt: Date.now()
           };
 
-          await set(newRef, orderData);
+          const docRef = await addDoc(collection(db, "orders"), orderData);
+          const orderId = docRef.id;
           setOrderId(orderId);
           if (onOrderPlaced) onOrderPlaced({ id: orderId, ...orderData });
           onClearCart();
@@ -397,8 +396,6 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
 
     setOrderId(null);
     setStep(3);
-    const newRef = push(ref(db, "orders"));
-    const orderId = newRef.key;
     
     const orderData: Omit<Order, 'id'> = {
       userId: user?.uid || null,
@@ -413,7 +410,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       deliveryFee,
       total: grandTotal,
       subscriptionType,
-      paymentId: orderId,
+      paymentId: `whatsapp_${Date.now()}`,
       paymentStatus: "unpaid",
       orderStatus: "pending",
       deliverySlot: "",
@@ -431,8 +428,9 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       createdAt: Date.now()
     };
 
-    void set(newRef, orderData)
-      .then(() => {
+    addDoc(collection(db, "orders"), orderData)
+      .then((docRef) => {
+        const orderId = docRef.id;
         setOrderId(orderId);
         if (onOrderPlaced) onOrderPlaced({ id: orderId, ...orderData });
       })

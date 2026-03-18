@@ -12,7 +12,7 @@ import FinalCTA from './components/FinalCTA';
 import AuthModal from './components/AuthModal';
 import ProfilePanel from './components/ProfilePanel';
 import { isSignInWithEmailLink, onAuthStateChanged, signInWithEmailLink, signOut, User } from 'firebase/auth';
-import { get, onValue, ref, update } from 'firebase/database';
+import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { Product, UserProfile, Order } from './types';
 import { seedMenu } from './data/seedMenu';
@@ -123,8 +123,8 @@ export default function App() {
     if (!user) return;
     const hydrateCart = async () => {
       try {
-        const snap = await get(ref(db, `users/${user.uid}`));
-        const data = snap.exists() ? (snap.val() as any) : null;
+        const snap = await getDoc(doc(db, "users", user.uid));
+        const data = snap.exists() ? (snap.data() as any) : null;
         if (data?.cart && Object.keys(data.cart).length > 0) {
           // Normalize cart data to ensure all values are numbers
           const normalizedCart = Object.fromEntries(
@@ -176,11 +176,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const userRef = ref(db, `users/${user.uid}`);
-    return onValue(
+    const userRef = doc(db, "users", user.uid);
+    return onSnapshot(
       userRef,
       (snapshot) => {
-        setUserProfile(snapshot.val() || null);
+        setUserProfile(snapshot.data() || null);
       },
       (err) => {
         console.warn("Failed to load user profile:", err);
@@ -189,16 +189,12 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    const menuRef = ref(db, "menu");
-    const unsubscribe = onValue(
+    const menuRef = collection(db, "menu");
+    const unsubscribe = onSnapshot(
       menuRef,
       (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-          const data: Product[] = Object.entries(val).map(([id, item]) => ({
-            id,
-            ...(item as Omit<Product, 'id'>),
-          }));
+        if (!snapshot.empty) {
+          const data: Product[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
           setMenuItems(data);
         } else {
           // Fallback or seed if necessary
@@ -221,19 +217,12 @@ export default function App() {
       return;
     }
 
-    const ordersRef = ref(db, 'orders');
+    const ordersQuery = query(collection(db, 'orders'), where("userId", "==", user.uid));
 
-    const unsubscribe = onValue(ordersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const allOrders: Order[] = Object.entries(data).map(([id, orderData]) => ({
-          id,
-          ...(orderData as any)
-        }));
-        
-        const myOrders: Order[] = allOrders.filter(o => 
-          o.userId === user.uid || (user.email && o.userEmail === user.email)
-        ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const myOrders: Order[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         
         setUserOrders(myOrders);
         setLocalUserOrders((prev) => prev.filter((lo) => !myOrders.some((mo) => mo.id === lo.id)));
@@ -254,7 +243,7 @@ export default function App() {
     
     const saveCart = async (cartData: Record<string, number>, retryCount = 0) => {
       try {
-        await update(ref(db, `users/${user.uid}`), { 
+        await updateDoc(doc(db, "users", user.uid), { 
           cart: cartData, 
           cartUpdatedAt: Date.now(),
           cartVersion: Date.now()  // Add version for conflict resolution
@@ -298,7 +287,7 @@ export default function App() {
   const handleAddressUpdate = async (addressData: any) => {
     if (!user) return;
     const payload = { ...addressData, updatedAt: Date.now() };
-    await update(ref(db, `users/${user.uid}`), payload);
+    await updateDoc(doc(db, "users", user.uid), payload);
     setUserProfile((prev: any) => ({ ...(prev || {}), ...payload }));
   };
 

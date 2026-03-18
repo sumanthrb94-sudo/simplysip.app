@@ -20,7 +20,8 @@ import { createInterface } from 'readline';
 const envContent = readFileSync('.env', 'utf8');
 const envVars = {};
 envContent.split('\n').forEach(line => {
-  const [key, value] = line.split('=');
+  const [key, ...rest] = line.split('=');
+  const value = rest.join('=');
   if (key && value) {
     envVars[key.trim()] = value.trim().replace(/^["']|["']$/g, '');
   }
