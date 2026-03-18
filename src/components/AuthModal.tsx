@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createUserWithEmailAndPassword, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile } from 'firebase/auth';
-import { ref, update } from 'firebase/database';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebaseConfig';
 
 interface AuthModalProps {
@@ -21,8 +21,8 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
   const [linkSent, setLinkSent] = useState(false);
 
   const upsertUserDoc = async (user: any, extra: Record<string, unknown> = {}) => {
-    await update(
-      ref(db, `users/${user.uid}`),
+    await setDoc(
+      doc(db, "users", user.uid),
       {
         uid: user.uid,
         name: user.displayName || fullName || "",
@@ -31,7 +31,8 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
         provider: user.providerData?.[0]?.providerId || "password",
         lastLoginAt: Date.now(),
         ...extra
-      }
+      },
+      { merge: true }
     );
   };
 

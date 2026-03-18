@@ -83,7 +83,7 @@ app.post("/api/auth/google", async (req, res) => {
     }
     const { sub: id, email, name, picture } = payload;
 
-    const userRef = db.collection("users").doc(email as string);
+    const userRef = db.collection("users").doc(id as string);
     const user = await userRef.get();
 
     if (!user.exists) {
