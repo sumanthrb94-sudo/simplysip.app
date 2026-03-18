@@ -1,14 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createUserWithEmailAndPassword, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendSignInLinkToEmail,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithPhoneNumber,
+  updateProfile,
+  RecaptchaVerifier
+} from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebaseConfig';
 
+type AuthMode = "login" | "signup";
+
+type AuthFlow = "email" | "phone" | "reset";
+
 interface AuthModalProps {
   isOpen: boolean;
-  mode: "login" | "signup";
+  mode: AuthMode;
   onClose: () => void;
-  onModeChange: (mode: "login" | "signup") => void;
+  onModeChange: (mode: AuthMode) => void;
 }
 
 export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthModalProps) {
@@ -19,6 +32,12 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
+  const [authFlow, setAuthFlow] = useState<AuthFlow>("email");
+  const [otpSent, setOtpSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const confirmationResultRef = useRef<any>(null);
 
   const upsertUserDoc = async (user: any, extra: Record<string, unknown> = {}) => {
     await setDoc(
@@ -36,11 +55,94 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
     );
   };
 
+  const initRecaptcha = () => {
+    if (typeof window === "undefined" || !auth) return;
+
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(
+        auth,
+        "recaptcha-container",
+        {
+          size: "invisible",
+          callback: () => {
+            // recaptcha solved
+          }
+        }
+      );
+    }
+  };
+
+  const handleSendPhoneOtp = async () => {
+    setError(null);
+    if (!/^[0-9]{10}$/.test(phone)) {
+      setError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    initRecaptcha();
+
+    try {
+      const phoneNumber = `+91${phone}`;
+      const confirmationResult = await signInWithPhoneNumber(
+        auth,
+        phoneNumber,
+        recaptchaVerifierRef.current as RecaptchaVerifier
+      );
+      confirmationResultRef.current = confirmationResult;
+      setOtpSent(true);
+    } catch (err: any) {
+      setError(err?.message || "Failed to send OTP.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    setError(null);
+    if (!verificationCode.trim() || !confirmationResultRef.current) {
+      setError("Enter the OTP sent to your phone.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await confirmationResultRef.current.confirm(verificationCode);
+      await upsertUserDoc(result.user);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Invalid OTP. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setError(null);
+    if (!isEmailValid) {
+      setError("Enter a valid email to send a reset link.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      await sendPasswordResetEmail(auth, email, {
+        url: appUrl,
+        handleCodeInApp: true
+      });
+      setResetSent(true);
+    } catch (err: any) {
+      setError(err?.message || "Failed to send reset link.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (mode === 'signup') {
+    if (mode === "signup") {
       if (!fullName.trim()) {
         setError("Full name is required.");
         return;
@@ -113,6 +215,10 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
       setError(null);
       setPassword("");
       setLinkSent(false);
+      setAuthFlow("email");
+      setOtpSent(false);
+      setVerificationCode("");
+      setResetSent(false);
     }
   }, [isOpen, mode]);
 
@@ -120,9 +226,17 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
 
   const isEmailValid = /\S+@\S+\.\S+/.test(email);
   const canSubmit =
-    mode === "login"
-      ? isEmailValid && password.trim().length > 0
-      : fullName.trim().length > 0 && isEmailValid && password.trim().length > 0;
+    authFlow === "email"
+      ? mode === "login"
+        ? isEmailValid && password.trim().length > 0
+        : fullName.trim().length > 0 && isEmailValid && password.trim().length > 0
+      : authFlow === "phone"
+      ? otpSent
+        ? verificationCode.trim().length > 0
+        : /^[0-9]{10}$/.test(phone)
+      : authFlow === "reset"
+      ? isEmailValid
+      : false;
 
   return (
     <AnimatePresence>
@@ -152,7 +266,10 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
 
           <div className="inline-flex rounded-full border border-black/10 bg-[#F4F1EC] p-1 mb-6">
             <button
-              onClick={() => onModeChange("login")}
+              onClick={() => {
+                onModeChange("login");
+                setAuthFlow("email");
+              }}
               className={`px-4 py-2 rounded-full text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors ${
                 mode === "login" ? "bg-[#1D1C1A] text-white" : "text-[#6F6A63]"
               }`}
@@ -160,7 +277,10 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
               Login
             </button>
             <button
-              onClick={() => onModeChange("signup")}
+              onClick={() => {
+                onModeChange("signup");
+                setAuthFlow("email");
+              }}
               className={`px-4 py-2 rounded-full text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors ${
                 mode === "signup" ? "bg-[#1D1C1A] text-white" : "text-[#6F6A63]"
               }`}
@@ -169,8 +289,17 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
+          <form
+            onSubmit={(e) => {
+              if (authFlow === "email") {
+                handleSubmit(e);
+              } else {
+                e.preventDefault();
+              }
+            }}
+            className="space-y-4"
+          >
+            {authFlow === "email" && mode === "signup" && (
               <input
                 type="text"
                 placeholder="Full Name"
@@ -179,17 +308,21 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
                 className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
               />
             )}
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
-            />
-            {mode === "signup" && (
+
+            {authFlow !== "phone" && (
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
+              />
+            )}
+
+            {authFlow === "phone" && (
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="Phone Number (10 digits)"
                 value={phone}
                 onChange={(e) => {
                   const numericValue = e.target.value.replace(/[^0-9]/g, '');
@@ -200,46 +333,119 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
                 className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
               />
             )}
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
-            />
+
+            {authFlow === "phone" && otpSent && (
+              <input
+                type="tel"
+                placeholder="Enter OTP"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
+              />
+            )}
+
+            {authFlow === "email" && (
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none focus:border-black transition-colors font-light"
+              />
+            )}
+
             {error && (
               <div className="text-xs text-red-500 font-medium">
                 {error}
               </div>
             )}
-          <button
-            type="submit"
-            disabled={isSubmitting || !canSubmit}
-            className="w-full py-4 bg-[#1A1A1A] text-white font-semibold tracking-[0.1em] hover:bg-black transition-all duration-500 uppercase text-[11px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#1A1A1A]"
-          >
-            {isSubmitting ? "Please wait..." : mode === "login" ? "Continue" : "Create Account"}
-          </button>
+
+            {authFlow === "email" && (
+              <button
+                type="submit"
+                disabled={isSubmitting || !canSubmit}
+                className="w-full py-4 bg-[#1A1A1A] text-white font-semibold tracking-[0.1em] hover:bg-black transition-all duration-500 uppercase text-[11px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#1A1A1A]"
+              >
+                {isSubmitting ? "Please wait..." : mode === "login" ? "Continue" : "Create Account"}
+              </button>
+            )}
+
+            {authFlow === "phone" && (
+              <button
+                type="button"
+                onClick={otpSent ? handleVerifyPhoneOtp : handleSendPhoneOtp}
+                disabled={isSubmitting || !canSubmit}
+                className="w-full py-4 bg-[#1A1A1A] text-white font-semibold tracking-[0.1em] hover:bg-black transition-all duration-500 uppercase text-[11px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#1A1A1A]"
+              >
+                {isSubmitting
+                  ? "Please wait..."
+                  : otpSent
+                  ? "Verify OTP"
+                  : "Send OTP"}
+              </button>
+            )}
+
+            {authFlow === "reset" && (
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={isSubmitting || !canSubmit}
+                className="w-full py-4 bg-[#1A1A1A] text-white font-semibold tracking-[0.1em] hover:bg-black transition-all duration-500 uppercase text-[11px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#1A1A1A]"
+              >
+                {isSubmitting ? "Please wait..." : "Send Reset Link"}
+              </button>
+            )}
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-black/10" />
-            <span className="text-[10px] uppercase tracking-[0.3em] text-[#6F6A63]">Or</span>
-            <div className="h-px flex-1 bg-black/10" />
+          <div className="my-4 text-xs text-right">
+            {mode === "login" && authFlow === "email" && (
+              <button
+                type="button"
+                onClick={() => setAuthFlow("reset")}
+                className="text-[#6F6A63] hover:text-black"
+              >
+                Forgot password?
+              </button>
+            )}
+            {mode === "login" && authFlow === "email" && (
+              <button
+                type="button"
+                onClick={() => setAuthFlow("phone")}
+                className="ml-4 text-[#6F6A63] hover:text-black"
+              >
+                Use phone instead
+              </button>
+            )}
+            {mode === "login" && authFlow === "phone" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthFlow("email");
+                  setOtpSent(false);
+                }}
+                className="text-[#6F6A63] hover:text-black"
+              >
+                Use email instead
+              </button>
+            )}
+            {mode === "login" && authFlow === "reset" && (
+              <button
+                type="button"
+                onClick={() => setAuthFlow("email")}
+                className="text-[#6F6A63] hover:text-black"
+              >
+                Back to login
+              </button>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleEmailLink}
-            disabled={isSubmitting || !isEmailValid}
-            className="w-full py-3.5 border border-black/10 rounded-full font-semibold tracking-[0.2em] uppercase text-[10px] text-[#1D1C1A] hover:border-black/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Email Me a Login Link
-          </button>
-          {linkSent && (
+          {authFlow === "reset" && resetSent && (
             <div className="mt-3 text-[11px] text-[#6F6A63] text-center">
-              Link sent. Check your email to finish sign-in.
+              Reset link sent. Check your email.
             </div>
           )}
+
+          <div id="recaptcha-container" className="hidden" />
 
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-black/10" />
