@@ -6,9 +6,9 @@ import { getFirestore } from "firebase/firestore";
 const getEnv = (key: string) => {
   const value = import.meta.env[key];
   if (!value) {
-    throw new Error(`Missing ${key} in environment`);
+    console.warn(`Missing ${key} in environment. Check GitHub Secrets.`);
   }
-  return value;
+  return value || "";
 };
 
 const firebaseConfig = {
