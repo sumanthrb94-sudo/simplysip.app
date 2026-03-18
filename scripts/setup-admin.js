@@ -81,5 +81,4 @@ async function setupAdmin() {
   }
 }
 
-setupAdmin();</content>
-<parameter name="filePath">c:\Users\91779\SIMPLYSIP\SIMPLYSIP\scripts\setup-admin.js
+setupAdmin();
