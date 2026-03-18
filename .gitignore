@@ -59,3 +59,4 @@ users.db
 # Temporary files
 tmp/
 temp/
+.env*.local
