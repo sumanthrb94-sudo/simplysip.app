@@ -48,6 +48,32 @@ const normalizeTimestamp = (value: any) => {
   return null;
 };
 
+// Generates a pleasant "Ding-Ding" chime using the native Web Audio API
+const playNotificationSound = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    
+    const ctx = new AudioContextClass();
+    const playNote = (freq: number, startTime: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gainNode.gain.setValueAtTime(0.15, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+    playNote(523.25, ctx.currentTime, 0.1);       // C5 note
+    playNote(659.25, ctx.currentTime + 0.15, 0.2); // E5 note
+  } catch (e) {
+    console.warn('Audio notification failed:', e);
+  }
+};
+
 export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => void, isAdminUser?: boolean }) {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(isAdminUser ?? null);
 
@@ -188,6 +214,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
           if (newOrder) {
             setToastOrder(newOrder);
             window.setTimeout(() => setToastOrder(null), 5000);
+            playNotificationSound(); // Play sound when the toast shows
           }
         }
         seenOrderIds.current = new Set(data.map((o: any) => o.id));
@@ -670,6 +697,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     );
   }
 
+  const pendingOrdersCount = displayOrders.filter(o => (o.orderStatus || o.status || 'pending') === 'pending').length;
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] p-6 md:p-12">
       <div className="max-w-6xl mx-auto">
@@ -824,9 +853,10 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             <h2 className="text-2xl font-bold tracking-tight text-[#1D1D1F]">Live Orders</h2>
             <button
               onClick={bulkAcceptPendingOrders}
-              className="px-5 py-2.5 bg-[#1D1C1A] text-white text-[10px] font-semibold tracking-[0.15em] uppercase rounded-full hover:bg-black transition-colors shadow-sm"
+              disabled={pendingOrdersCount === 0}
+              className="px-5 py-2.5 bg-[#1D1C1A] text-white text-[10px] font-semibold tracking-[0.15em] uppercase rounded-full hover:bg-black transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Accept All Pending
+              Accept All Pending ({pendingOrdersCount})
             </button>
           </div>
           {displayOrders.length === 0 ? (
