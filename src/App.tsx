@@ -123,8 +123,7 @@ export default function App() {
         // Immediately set admin status synchronously to avoid database hangs
         const email = currentUser.email?.toLowerCase().trim() || "";
         const isEmailAdmin = email === "sumanthbolla97@gmail.com";
-        const isLocalAdmin = window.localStorage.getItem('simplysip_local_admin') === 'true';
-        setIsAdmin(isEmailAdmin || isLocalAdmin);
+        setIsAdmin(isEmailAdmin);
 
         // Background check for Firestore admin badge
         getDoc(doc(db, "admins", currentUser.uid))
@@ -132,9 +131,7 @@ export default function App() {
             if (snap.exists()) {
               setIsAdmin(true);
             } else if (!isEmailAdmin) {
-              // Revoke invalid local admin status to prevent crash loops
               setIsAdmin(false);
-              window.localStorage.removeItem('simplysip_local_admin');
             }
           })
           .catch((err: any) => {
@@ -730,18 +727,8 @@ export default function App() {
               }}
             />
 
-            {/* Hidden Admin Trigger in Footer */}
             <footer className="py-12 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
-              <p>(c) 2026 SIMPLY SIP. All rights reserved. 
-                <button 
-                  onClick={() => {
-                    setIsAdminOpen(true);
-                  }}
-                  className="transition-opacity ml-2 font-bold opacity-100 text-blue-600 underline"
-                >
-                  Admin
-                </button>
-              </p>
+              <p>(c) 2026 SIMPLY SIP. All rights reserved.</p>
             </footer>
           </motion.div>
         )}

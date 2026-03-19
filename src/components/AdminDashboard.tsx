@@ -135,8 +135,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       // Immediately authorize synchronously
       const email = currentUser.email?.toLowerCase().trim() || "";
       const isEmailAdmin = email === "sumanthbolla97@gmail.com";
-      const isLocalAdmin = window.localStorage.getItem('simplysip_local_admin') === 'true';
-      setIsAuthorized(isEmailAdmin || isLocalAdmin);
+      setIsAuthorized(isEmailAdmin);
       
       // Check Firestore as backup without blocking
       getDoc(doc(db, "admins", currentUser.uid))
@@ -144,7 +143,6 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
           if (snap.exists()) setIsAuthorized(true); 
           else if (!isEmailAdmin) {
             setIsAuthorized(false);
-            window.localStorage.removeItem('simplysip_local_admin');
           }
         })
         .catch((err) => console.warn("Admin status check failed:", err));
