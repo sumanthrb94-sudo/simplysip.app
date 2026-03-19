@@ -456,7 +456,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'admin') window.history.back();
       };
     }
   }, [isAdminOpen]);
@@ -468,7 +467,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'checkout') window.history.back();
       };
     }
   }, [isCheckoutOpen]);
@@ -480,7 +478,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'profile') window.history.back();
       };
     }
   }, [isProfileOpen]);
@@ -492,7 +489,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'auth') window.history.back();
       };
     }
   }, [isAuthOpen]);
@@ -613,8 +609,8 @@ export default function App() {
               onProfileToggle={() => setIsProfileOpen(true)}
             />
             <Hero onSubscribe={() => {
-              const el = document.getElementById('subscriptions');
-              if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
+              const el = document.getElementById('subscriptions') || document.getElementById('subscription');
+              if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 40, behavior: 'smooth' });
             }} />
             <Menu 
               cart={cart}
@@ -624,11 +620,13 @@ export default function App() {
               onCheckout={handleOpenCheckout}
               onCartTotalChange={setMenuTotal}
             />
-            <Subscription 
-              onSubscribe={(plan) => handleSubscription(plan)}
-              selectedPlan={selectedPlan}
-              onPlanChange={(plan) => setSelectedPlan(plan)}
-            />
+            <div id="subscriptions">
+              <Subscription 
+                onSubscribe={(plan) => handleSubscription(plan)}
+                selectedPlan={selectedPlan}
+                onPlanChange={(plan) => setSelectedPlan(plan)}
+              />
+            </div>
             <Story />
             <FinalCTA onSubscribe={handleOpenCheckout} />
             <StickyCTA 

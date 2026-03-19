@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw, CheckSquare, Square } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
@@ -117,7 +117,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     assignedRider: "",
     notes: ""
   });
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'analytics'>('orders');
+
+  useEffect(() => {
+    setSelectedOrderIds(new Set());
+  }, [orderFilter, activeTab]);
   const hasLoadedOrders = useRef(false);
   const dashboardOpenedAt = useRef(Date.now());
 
@@ -549,7 +554,6 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'order') window.history.back();
       };
     }
   }, [!!selectedOrder]);
@@ -579,24 +583,30 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     }
   };
 
-  const bulkAcceptPendingOrders = async () => {
-    const pendingOrders = displayOrders.filter(o => (o.orderStatus || o.status || 'pending') === 'pending');
-    if (pendingOrders.length === 0) return alert("No pending orders to accept.");
-
-    const isConfirmed = window.confirm(`Are you sure you want to accept ${pendingOrders.length} pending orders?`);
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (selectedOrderIds.size === 0) return;
+    const actionName = newStatus === 'out-for-delivery' ? 'dispatch' : newStatus;
+    const isConfirmed = window.confirm(`Are you sure you want to mark ${selectedOrderIds.size} orders as '${actionName}'?`);
     if (!isConfirmed) return;
 
+    setIsSavingOrder(true);
     try {
       const batch = writeBatch(db);
-      pendingOrders.forEach(order => {
-        const orderRef = doc(db, "orders", order.id);
-        batch.update(orderRef, { orderStatus: "preparing", updatedAt: Date.now() });
+      selectedOrderIds.forEach(id => {
+        const orderRef = doc(db, "orders", id);
+        batch.update(orderRef, { orderStatus: newStatus, updatedAt: Date.now() });
       });
-      await batch.commit(); // Sends all updates in exactly 1 network request
-      alert(`Successfully accepted ${pendingOrders.length} orders!`);
+      await batch.commit(); 
+
+      setLocalMockOrders((prev) =>
+        prev.map((order) => (selectedOrderIds.has(order.id) ? { ...order, orderStatus: newStatus, updatedAt: Date.now() } : order))
+      );
+      setSelectedOrderIds(new Set());
     } catch (err: any) {
       console.error("Bulk update failed:", err);
       alert(`Failed to bulk update orders: ${err.message}`);
+    } finally {
+      setIsSavingOrder(false);
     }
   };
 
@@ -685,6 +695,16 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       setLocalMockOrders((prev) => prev.filter((order) => order.id !== id));
     }
   };
+
+  const filteredOrders = useMemo(() => {
+    return displayOrders
+      .filter((order) => {
+        if (orderFilter === "all") return true;
+        if (orderFilter === "paid") return (order.paymentStatus || "") === "paid";
+        return (order.orderStatus || order.status || "pending") === orderFilter;
+      })
+      .slice(0, 50);
+  }, [displayOrders, orderFilter]);
 
   if (isAuthorized === false) {
     return (
@@ -870,11 +890,17 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   ))}
                 </div>
                 <button
-                  onClick={bulkAcceptPendingOrders}
-                  disabled={pendingOrdersCount === 0}
-                  className="px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-black transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    if (selectedOrderIds.size === filteredOrders.length && filteredOrders.length > 0) {
+                      setSelectedOrderIds(new Set());
+                    } else {
+                      setSelectedOrderIds(new Set(filteredOrders.map(o => o.id)));
+                    }
+                  }}
+                  className="px-3 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
                 >
-                  Accept All Pending ({pendingOrdersCount})
+                  {selectedOrderIds.size === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare size={14} className="text-gray-900" /> : <Square size={14} />}
+                  Select All
                 </button>
               </div>
             </div>
@@ -884,22 +910,31 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                 <p className="text-gray-500 font-medium text-sm">No orders found.</p>
               </div>
             ) : (
-              <div className="grid gap-3">
-                {displayOrders
-                  .filter((order) => {
-                    if (orderFilter === "all") return true;
-                    if (orderFilter === "paid") return (order.paymentStatus || "") === "paid";
-                    return (order.orderStatus || order.status || "pending") === orderFilter;
-                  })
-                  .slice(0, 50)
-                  .map((order) => {
+              <div className="grid gap-3 pb-24">
+                {filteredOrders.map((order) => {
                     const status = order.orderStatus || order.status || 'pending';
                     const source = getPaymentSource(order.paymentId);
+                    const isSelected = selectedOrderIds.has(order.id);
                     return (
                     <div
                       key={order.id}
-                      className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group flex flex-col sm:flex-row"
+                      className={`bg-white border ${isSelected ? 'border-gray-900 shadow-md ring-1 ring-gray-900' : 'border-gray-200 hover:shadow-md'} rounded-xl overflow-hidden shadow-sm transition-all group flex flex-col sm:flex-row`}
                     >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedOrderIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(order.id)) next.delete(order.id);
+                            else next.add(order.id);
+                            return next;
+                          });
+                        }}
+                        className={`flex items-center justify-center p-4 sm:p-5 border-b sm:border-b-0 sm:border-r ${isSelected ? 'bg-gray-50 border-gray-900/10' : 'bg-white border-gray-100'} hover:bg-gray-50 transition-colors shrink-0`}
+                      >
+                        {isSelected ? <CheckSquare size={18} className="text-gray-900" /> : <Square size={18} className="text-gray-300" />}
+                      </button>
                       <button
                         type="button"
                         onClick={() => setSelectedOrder(order)}
@@ -953,6 +988,28 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                 })}
               </div>
             )}
+            
+            <AnimatePresence>
+              {selectedOrderIds.size > 0 && activeTab === 'orders' && (
+                <motion.div
+                  initial={{ y: 100, opacity: 0, x: '-50%' }}
+                  animate={{ y: 0, opacity: 1, x: '-50%' }}
+                  exit={{ y: 100, opacity: 0, x: '-50%' }}
+                  className="fixed bottom-6 left-1/2 z-[90] bg-gray-900 text-white px-3 py-2 sm:px-4 sm:py-3 rounded-2xl shadow-2xl flex items-center gap-2 sm:gap-4 border border-gray-700 w-[95%] sm:w-auto overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                >
+                  <div className="flex items-center gap-2 shrink-0 pr-2">
+                    <span className="bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">{selectedOrderIds.size}</span>
+                    <span className="text-sm font-semibold tracking-wide hidden sm:inline-block">Selected</span>
+                  </div>
+                  <div className="h-5 w-px bg-gray-700 shrink-0 hidden sm:block"></div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => handleBulkStatusUpdate('preparing')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 disabled:opacity-50">Prep</button>
+                    <button onClick={() => handleBulkStatusUpdate('out-for-delivery')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 disabled:opacity-50">Dispatch</button>
+                    <button onClick={() => handleBulkStatusUpdate('delivered')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 text-emerald-400 border-emerald-900/30 disabled:opacity-50">Deliver</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 

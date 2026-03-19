@@ -396,6 +396,7 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
   const [selectedProduct, setSelectedProduct] = useState<ProductData | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [cartItems, setCartItems] = useState<Record<string, number>>({});
+  const [activeSection, setActiveSection] = useState<string>('signature');
 
   useEffect(() => {
     const normalized = Object.fromEntries(
@@ -433,6 +434,41 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
     return () => window.clearTimeout(timer);
   }, [isPanelOpen, selectedProduct]);
 
+  // ScrollSpy to automatically detect which section is in view
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = ['signature', 'pure', 'subscriptions'];
+      let current = 'signature'; // Default fallback
+      for (const id of sections) {
+        const el = document.getElementById(id) || (id === 'subscriptions' ? document.getElementById('subscription') : null);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // More generous threshold to account for component padding heights
+          if (rect.top <= 250) {
+            current = id;
+          }
+        }
+      }
+      setActiveSection((prev) => {
+        if (prev !== current) {
+          // Center the active tab in the horizontally scrollable container
+          const btn = document.getElementById(`nav-btn-${current}`);
+          if (btn && btn.parentElement) {
+            btn.parentElement.scrollTo({
+              left: btn.offsetLeft - btn.parentElement.clientWidth / 2 + btn.clientWidth / 2,
+              behavior: 'smooth'
+            });
+          }
+          return current;
+        }
+        return prev;
+      });
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Init
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Intercept hardware back button for the product panel
   useEffect(() => {
     if (isPanelOpen) {
@@ -441,7 +477,6 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'product') window.history.back();
       };
     }
   }, [isPanelOpen]);
@@ -459,6 +494,16 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
     setIsPanelOpen(true);
   };
 
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    const el = document.getElementById(id) || (id === 'subscriptions' ? document.getElementById('subscription') : null);
+    if (el) {
+      const offset = id === 'subscriptions' ? 40 : 140;
+      const y = el.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
 
   const products = menuItems.map((item, index) =>
     buildProduct(
@@ -527,22 +572,37 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
         </motion.div>
 
         <div className="sticky top-[70px] sm:top-[85px] z-40 bg-white/80 backdrop-blur-xl border-y border-black/5 py-4 px-4 sm:px-6 -mx-4 sm:mx-0 mb-8 sm:mb-12 flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <button onClick={() => {
-            const el = document.getElementById('subscriptions');
-            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
-          }} className="px-5 py-3 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] flex items-center gap-2 hover:-translate-y-0.5 transition-transform">
-            <Star size={14} className="text-yellow-400 fill-yellow-400" /> Only Subscriptions
+          <button 
+            id="nav-btn-subscriptions"
+            onClick={() => scrollToSection('subscriptions')} 
+            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 flex items-center gap-2 transition-all ${
+              activeSection === 'subscriptions' 
+                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]' 
+                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
+            }`}
+          >
+            <Star size={14} className={activeSection === 'subscriptions' ? "text-yellow-400 fill-yellow-400" : "text-gray-400"} /> Only Subscriptions
           </button>
-          <button onClick={() => {
-            const el = document.getElementById('signature');
-            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
-          }} className="px-5 py-3 bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 hover:bg-gray-100 transition-colors">
+          <button 
+            id="nav-btn-signature"
+            onClick={() => scrollToSection('signature')} 
+            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
+              activeSection === 'signature'
+                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
+                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
+            }`}
+          >
             Signature Blends
           </button>
-          <button onClick={() => {
-            const el = document.getElementById('pure');
-            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
-          }} className="px-5 py-3 bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 hover:bg-gray-100 transition-colors">
+          <button 
+            id="nav-btn-pure"
+            onClick={() => scrollToSection('pure')} 
+            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
+              activeSection === 'pure'
+                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
+                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
+            }`}
+          >
             Single Fruit Series
           </button>
         </div>
