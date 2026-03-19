@@ -102,29 +102,37 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const [orderId, setOrderId] = useState<string | null>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const [formData, setFormData] = useState({
-    name: user?.displayName || user?.name || '',
-    phone: user?.phoneNumber || user?.phone || '',
+    name: user?.name || user?.displayName || '',
+    phone: user?.phone || (user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '').slice(-10) : ''),
     address: user?.address || '',
     area: user?.area || ''
   });
   const [addressType, setAddressType] = useState(user?.addressType || 'Home');
   const [isAddressLocked, setIsAddressLocked] = useState(false);
   const [isServiceable, setIsServiceable] = useState<boolean>(true);
+  const [location, setLocation] = useState(user?.location || "");
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(user?.locationAccuracy || null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [detectedZone, setDetectedZone] = useState<string | null>(null);
+  const watchId = useRef<number | null>(null);
   const rupee = "\u20B9";
 
   useEffect(() => {
     if (!user) return;
     const nextForm = {
-      name: user?.displayName || user?.name || '',
-      phone: user?.phoneNumber || user?.phone || '',
+      name: user?.name || user?.displayName || '',
+      phone: user?.phone || (user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '').slice(-10) : ''),
       address: user?.address || '',
       area: user?.area || ''
     };
     setFormData(nextForm);
     setAddressType(user?.addressType || 'Home');
-    const hasSavedAddress = Boolean(nextForm.name && nextForm.phone && nextForm.address && nextForm.area);
+    const hasSavedAddress = Boolean(nextForm.name && nextForm.phone && nextForm.address && nextForm.area && nextForm.area !== "Select Area");
     setIsAddressLocked(hasSavedAddress);
-  }, [user]);
+    setLocation(user?.location || "");
+    setLocationAccuracy(user?.locationAccuracy || null);
+  }, [user?.address, user?.area, user?.phone, user?.name, user?.location, user?.locationAccuracy, user?.displayName, user?.phoneNumber]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
@@ -176,9 +184,90 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     return (R * c) <= 40; // Serviceable within 40km radius
   };
 
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const findNearestZone = (lat: number, lng: number) => {
+    let nearestZone: { name: string; lat: number; lng: number; } | null = null;
+    let minDistance = Infinity;
+
+    SERVICEABLE_ZONES.forEach(zone => {
+        if (zone.name === "Select Area") return;
+        const distance = getDistance(lat, lng, zone.lat, zone.lng);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestZone = zone;
+        }
+    });
+    return minDistance < 40 ? nearestZone : null;
+  };
+
+  const stopLocationWatch = () => {
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+  };
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Location not supported");
+      return;
+    }
+    stopLocationWatch();
+    setIsLocating(true);
+    setLocationError(null);
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const lat = latitude.toFixed(6);
+        const lng = longitude.toFixed(6);
+        const acc = Math.round(accuracy);
+
+        setLocation(`Lat ${lat}, Lng ${lng}`);
+        setLocationAccuracy(acc);
+
+        const isCurrentlyServiceable = checkServiceability(latitude, longitude);
+        setIsServiceable(isCurrentlyServiceable);
+
+        if (isCurrentlyServiceable) {
+          const nearestZone = findNearestZone(latitude, longitude);
+          if (nearestZone) {
+            setDetectedZone(nearestZone.name);
+            setFormData(prev => ({ ...prev, area: nearestZone.name }));
+          } else {
+            setDetectedZone(null);
+          }
+        } else {
+          setDetectedZone(null);
+        }
+
+        setIsLocating(false);
+        if (acc <= 10) stopLocationWatch();
+      },
+      (err) => {
+        setLocationError(err.message || "Location permission denied");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  };
+
   useEffect(() => {
-    if (user?.location) {
-      const parts = user.location.replace(/Lat|Lng/g, '').split(',');
+    if (!isAddressLocked) requestLocation();
+    else stopLocationWatch();
+    return () => stopLocationWatch();
+  }, [isAddressLocked]);
+
+  useEffect(() => {
+    if (location) {
+      const parts = location.replace(/Lat|Lng/g, '').split(',');
       if (parts.length === 2) {
         const lat = parseFloat(parts[0]);
         const lng = parseFloat(parts[1]);
@@ -223,10 +312,13 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     }
   };
 
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
     if (!onAddressUpdate) {
       setIsAddressLocked(true);
       return;
+    }
+    if (!isServiceable) {
+      return alert("Sorry, your location is outside our service area and cannot be saved.");
     }
     if (!formData.name.trim()) {
       return alert("Please enter your full name.");
@@ -240,15 +332,24 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     if (!formData.area || formData.area === "Select Area") {
       return alert("Please select a delivery area.");
     }
-    onAddressUpdate({
-      name: formData.name,
-      address: formData.address,
-      area: formData.area,
-      addressType: addressType,
-      phone: formData.phone
-    });
-    setIsAddressLocked(true);
-    alert("Address saved!");
+    if (!location) {
+      return alert("Please ensure your location is detected before saving.");
+    }
+    try {
+      await onAddressUpdate({
+        name: formData.name,
+        address: formData.address,
+        area: formData.area,
+        addressType: addressType,
+        phone: formData.phone,
+        location: location,
+        locationAccuracy: locationAccuracy
+      });
+      setIsAddressLocked(true);
+      alert("Address saved!");
+    } catch (err) {
+      alert("Failed to save address.");
+    }
   };
 
   const handleEditAddress = () => {
@@ -261,26 +362,23 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       alert("Your cart is empty.");
       return;
     }
-    if (!user?.location) {
-      alert("Please set a delivery location in your profile.");
+    if (!location) {
+      alert("Please save a delivery location first.");
       return;
     }
-    if (user?.locationAccuracy && user.locationAccuracy > 1000) {
-      alert(`Your saved location accuracy is poor (${user.locationAccuracy}m). Please update it in your profile.`);
+    if (locationAccuracy && locationAccuracy > 1000) {
+      alert(`Your location accuracy is poor (${locationAccuracy}m). Please wait for a better signal or refresh.`);
       return;
     }
     if (!isServiceable) {
       alert("Sorry, we currently only deliver to Cyberabad, Secunderabad, and Hyderabad.");
       return;
     }
-    if (!formData.name.trim()) {
-      return alert("Please provide a name for delivery.");
+    if (!formData.name.trim() || !/^\d{10}$/.test(formData.phone) || !formData.address.trim() || !formData.area || formData.area === "Select Area") {
+      return alert("Please fill in and save your complete address details.");
     }
-    if (!/^\d{10}$/.test(formData.phone)) {
-      return alert("Please provide a valid 10-digit phone number for delivery.");
-    }
-    if (!formData.address.trim() || !formData.area || formData.area === "Select Area") {
-      return alert("Please provide a complete address and delivery area.");
+    if (!isAddressLocked) {
+      return alert("Please click 'Save Address' before proceeding to payment.");
     }
 
     setStep(2);
@@ -322,8 +420,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
           address: formData.address,
           addressType: addressType
         },
-        location: user?.location || null,
-        locationAccuracy: user?.locationAccuracy || null,
+        location: location || null,
+        locationAccuracy: locationAccuracy || null,
         createdAt: Date.now()
       };
 
@@ -363,9 +461,9 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
           return `${item.name}${desc} x${cart[item.id]} - ${rupee}${getOfferPrice(item)} each`;
         })
         .join("\n");
-      const location = user?.location || 'N/A';
-      const accuracyText = user?.locationAccuracy ? ` (accuracy ${user.locationAccuracy}m)` : "";
-      const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${location}${accuracyText}\nOrder via WhatsApp.`;
+      const locText = location || 'N/A';
+      const accuracyText = locationAccuracy ? ` (accuracy ${locationAccuracy}m)` : "";
+      const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${locText}${accuracyText}\nOrder via WhatsApp.`;
       
       const orderData: Omit<Order, 'id'> = {
         userId: user?.uid || null,
@@ -393,8 +491,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
           address: formData.address,
           addressType: addressType
         },
-        location: user?.location || null,
-        locationAccuracy: user?.locationAccuracy || null,
+        location: location || null,
+        locationAccuracy: locationAccuracy || null,
         createdAt: Date.now()
       };
 
@@ -604,29 +702,48 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
               )}
 
               <div className="space-y-3">
-                <label className="block text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400">Delivery Location</label>
-                <div className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-3 text-base text-gray-600 font-light">
-                  {user?.location || "No location set in profile."}
+                <label className="block text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400">Location (Auto-detected)</label>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                  <input 
+                    type="text"
+                    value={
+                      isAddressLocked
+                        ? (formData.area && formData.area !== "Select Area" ? formData.area : (location || "Not set"))
+                        : isLocating
+                          ? "Detecting location..."
+                          : location
+                            ? isServiceable ? (detectedZone || "Searching for nearest zone...") : "Unserviceable Area"
+                            : "Location required"
+                    }
+                    readOnly
+                    disabled={isAddressLocked}
+                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-base focus:outline-none font-light disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    placeholder="Location required"
+                  />
+                  {!isAddressLocked && (
+                    <button
+                      type="button"
+                      onClick={requestLocation}
+                      className="px-5 py-3 rounded-full border border-black/10 text-[10px] font-semibold tracking-[0.2em] uppercase text-[#1D1C1A] hover:border-black/20 transition-colors"
+                    >
+                      {isLocating ? "Locating..." : "Retry"}
+                    </button>
+                  )}
                 </div>
-                {user?.locationAccuracy && (
-                  <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${
-                    user.locationAccuracy <= 10 ? 'text-green-600' :
-                    user.locationAccuracy <= 50 ? 'text-yellow-600' :
-                    user.locationAccuracy <= 1000 ? 'text-gray-500' :
-                    'text-red-600'
-                  }`}>
-                    Saved Accuracy: {user.locationAccuracy}m
+                {locationAccuracy !== null && !isAddressLocked && (
+                  <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${ locationAccuracy <= 10 ? 'text-green-600' : locationAccuracy <= 50 ? 'text-yellow-600' : locationAccuracy <= 1000 ? 'text-gray-500' : 'text-red-600' }`}>
+                    Accuracy: {locationAccuracy}m
+                    {locationAccuracy <= 10 && ' (Excellent)'}
+                    {locationAccuracy > 10 && locationAccuracy <= 50 && ' (Good)'}
+                    {locationAccuracy > 50 && locationAccuracy <= 1000 && ' (Fair)'}
+                    {locationAccuracy > 1000 && ' (Poor)'}
                   </div>
                 )}
-                {!isServiceable && user?.location && (
+                {locationError && !isAddressLocked && <div className="text-[10px] uppercase tracking-[0.2em] text-red-500">{locationError}</div>}
+                {!isServiceable && location && !isAddressLocked && (
                   <div className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl border border-red-100">
                     Location Unserviceable. We currently only deliver to Cyberabad, Secunderabad, and Hyderabad.
                   </div>
-                )}
-                {!user?.location && (
-                    <div className="mt-2 text-xs font-semibold text-yellow-600 bg-yellow-50 p-3 rounded-xl border border-yellow-100">
-                        Please go to your profile to set a delivery location.
-                    </div>
                 )}
               </div>
             </div>

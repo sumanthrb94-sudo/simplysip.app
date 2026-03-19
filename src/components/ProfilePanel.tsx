@@ -211,8 +211,8 @@ export default function ProfilePanel({
       setLocationAccuracy(userProfile.locationAccuracy || null);
 
       setFormData({
-        name: userProfile.name ?? user?.displayName ?? '',
-        phone: userProfile.phone ?? user?.phoneNumber ?? '',
+        name: userProfile.name || user?.displayName || '',
+        phone: userProfile.phone || (user?.phoneNumber ? user.phoneNumber.replace(/[^0-9]/g, '').slice(-10) : ''),
         address: userProfile.address || '',
         area: userProfile.area || ''
       });
@@ -220,7 +220,7 @@ export default function ProfilePanel({
     } else {
       setIsAddressLocked(false);
     }
-  }, [userProfile, user]);
+  }, [userProfile?.address, userProfile?.area, userProfile?.phone, userProfile?.name, userProfile?.location, userProfile?.locationAccuracy, userProfile?.addressType, user?.displayName, user?.phoneNumber]);
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

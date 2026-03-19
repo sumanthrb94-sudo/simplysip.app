@@ -40,17 +40,25 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
   const confirmationResultRef = useRef<any>(null);
 
   const upsertUserDoc = async (user: any, extra: Record<string, unknown> = {}) => {
+    const payload: any = {
+      uid: user.uid,
+      provider: user.providerData?.[0]?.providerId || "password",
+      lastLoginAt: Date.now(),
+      ...extra
+    };
+    
+    const finalName = user.displayName || fullName;
+    if (finalName) payload.name = finalName;
+    
+    const finalPhone = phone || user.phoneNumber;
+    if (finalPhone) payload.phone = finalPhone;
+    
+    const finalEmail = user.email || email;
+    if (finalEmail) payload.email = finalEmail;
+
     await setDoc(
       doc(db, "users", user.uid),
-      {
-        uid: user.uid,
-        name: user.displayName || fullName || "",
-        phone: phone || user.phoneNumber || "",
-        email: user.email || email || "",
-        provider: user.providerData?.[0]?.providerId || "password",
-        lastLoginAt: Date.now(),
-        ...extra
-      },
+      payload,
       { merge: true }
     );
   };

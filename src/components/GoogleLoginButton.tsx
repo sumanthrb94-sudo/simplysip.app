@@ -16,13 +16,17 @@ const GoogleLoginButton = ({ onLoginSuccess }: GoogleLoginButtonProps) => {
       // This gives you a Google Access Token. You can use it to access the Google API.
       // const credential = GoogleAuthProvider.credentialFromResult(result);
       // const token = credential.accessToken;
-      await setDoc(doc(db, "users", user.uid), {
+      
+      const payload: any = {
         uid: user.uid,
-        name: user.displayName || "",
-        email: user.email || "",
         provider: user.providerData?.[0]?.providerId || "google",
         lastLoginAt: Date.now()
-      }, { merge: true });
+      };
+      if (user.displayName) payload.name = user.displayName;
+      if (user.email) payload.email = user.email;
+      if (user.phoneNumber) payload.phone = user.phoneNumber;
+
+      await setDoc(doc(db, "users", user.uid), payload, { merge: true });
       onLoginSuccess(user);
     } catch (error) {
       console.error("Authentication error:", error);

@@ -130,7 +130,13 @@ export default function App() {
           .then((snap) => {
             if (snap.exists()) setIsAdmin(true);
           })
-          .catch((err) => console.warn("Failed to load admin status:", err));
+          .catch((err: any) => {
+            if (err.code === 'unavailable' || err.message?.includes('offline')) {
+              console.debug("Admin check deferred: Client is offline.");
+            } else {
+              console.warn("Failed to load admin status:", err);
+            }
+          });
       } else {
         setIsAdminOpen(false);
         setIsCartHydrated(false);
@@ -154,7 +160,7 @@ export default function App() {
           const normalizedCart = Object.fromEntries(
             Object.entries(data.cart).map(([k, v]) => [k, Number(v) || 0])
           );
-          setCart(normalizedCart);
+          setCart(current => Object.keys(current).length > 0 ? { ...normalizedCart, ...current } : normalizedCart);
         } else {
           // Fallback to localStorage if no cart in database
           const localCart = window.localStorage.getItem("simplysip_cart");
@@ -164,17 +170,21 @@ export default function App() {
               const normalizedCart = Object.fromEntries(
                 Object.entries(parsedCart).map(([k, v]) => [k, Number(v) || 0])
               );
-              setCart(normalizedCart);
+              setCart(current => Object.keys(current).length > 0 ? { ...normalizedCart, ...current } : normalizedCart);
             } catch (err) {
               console.warn("Failed to parse local cart:", err);
-              setCart({});
+              setCart(current => Object.keys(current).length > 0 ? current : {});
             }
           } else {
-            setCart({});
+            setCart(current => Object.keys(current).length > 0 ? current : {});
           }
         }
-      } catch (err) {
-        console.warn("Failed to hydrate cart from database, trying localStorage:", err);
+      } catch (err: any) {
+        if (err.code === 'unavailable' || err.message?.includes('offline')) {
+          console.debug("Client offline. Hydrating cart from localStorage.");
+        } else {
+          console.warn("Failed to hydrate cart from database, trying localStorage:", err);
+        }
         // Fallback to localStorage
         const localCart = window.localStorage.getItem("simplysip_cart");
         if (localCart) {
@@ -183,13 +193,13 @@ export default function App() {
             const normalizedCart = Object.fromEntries(
               Object.entries(parsedCart).map(([k, v]) => [k, Number(v) || 0])
             );
-            setCart(normalizedCart);
+              setCart(current => Object.keys(current).length > 0 ? { ...normalizedCart, ...current } : normalizedCart);
           } catch (parseErr) {
             console.warn("Failed to parse local cart:", parseErr);
-            setCart({});
+              setCart(current => Object.keys(current).length > 0 ? current : {});
           }
         } else {
-          setCart({});
+            setCart(current => Object.keys(current).length > 0 ? current : {});
         }
       } finally {
         setIsCartHydrated(true);
@@ -200,11 +210,34 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
+    
+    // Instantly recover profile from local storage to prevent flicker
+    const cachedProfile = window.localStorage.getItem(`simplysip_profile_${user.uid}`);
+    if (cachedProfile) {
+      try {
+        setUserProfile(JSON.parse(cachedProfile));
+      } catch (e) {}
+    }
+
     const userRef = doc(db, "users", user.uid);
     return onSnapshot(
       userRef,
       (snapshot) => {
-        setUserProfile(snapshot.data() || null);
+        const data = snapshot.data();
+        if (data) {
+          setUserProfile((prev: any) => {
+            // Protect local optimistic updates from stale server reads during quick refreshes
+            if (prev?.updatedAt) {
+              const serverTime = data.updatedAt || 0;
+              // If the server data is older than our local optimistic update, ignore it
+              if (serverTime < prev.updatedAt) {
+                return prev;
+              }
+            }
+            window.localStorage.setItem(`simplysip_profile_${user.uid}`, JSON.stringify(data));
+            return data;
+          });
+        }
       },
       (err) => {
         console.warn("Failed to load user profile:", err);
@@ -243,14 +276,19 @@ export default function App() {
 
     const ordersQuery = query(collection(db, 'orders'), where("userId", "==", user.uid));
 
-    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(ordersQuery, { includeMetadataChanges: true }, (snapshot) => {
       if (!snapshot.empty) {
         const myOrders: Order[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order))
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         
+        // Only clear the local fallback once the server explicitly confirms the write
+        const confirmedOrderIds = new Set(
+          snapshot.docs.filter(doc => !doc.metadata.hasPendingWrites).map(doc => doc.id)
+        );
+
         setUserOrders(myOrders);
         setLocalUserOrders((prev) => {
-          const updated = prev.filter((lo) => !myOrders.some((mo) => mo.id === lo.id));
+          const updated = prev.filter((lo) => !confirmedOrderIds.has(lo.id));
           window.localStorage.setItem('simplysip_local_orders', JSON.stringify(updated));
           return updated;
         });
@@ -315,9 +353,52 @@ export default function App() {
   const handleAddressUpdate = async (addressData: any) => {
     if (!user) return;
     const payload = { ...addressData, updatedAt: Date.now() };
-    await setDoc(doc(db, "users", user.uid), payload, { merge: true });
-    setUserProfile((prev: any) => ({ ...(prev || {}), ...payload }));
+    // Optimistically update memory and localStorage instantly
+    setUserProfile((prev: any) => {
+      const next = { ...(prev || {}), ...payload };
+      window.localStorage.setItem(`simplysip_profile_${user.uid}`, JSON.stringify(next));
+      return next;
+    });
+    try {
+      await setDoc(doc(db, "users", user.uid), payload, { merge: true });
+    } catch (err) {
+      console.error("Firebase address write failed (Check Rules):", err);
+      alert("Permission Error: Address saved locally but could not sync to server. Please check your Firebase Database Rules.");
+    }
   };
+
+  // Background sync to ensure offline/refreshed profile data reaches server
+  useEffect(() => {
+    if (!user || !userProfile?.updatedAt) return;
+    const syncProfile = async () => {
+      try {
+        await setDoc(doc(db, "users", user.uid), userProfile, { merge: true });
+      } catch (e) {
+        console.warn("Background profile sync failed:", e);
+      }
+    };
+    const timeoutId = setTimeout(syncProfile, 4000);
+    return () => clearTimeout(timeoutId);
+  }, [user, userProfile]);
+
+  // Background sync to ensure offline/refreshed orders reach the server
+  useEffect(() => {
+    if (!user || localUserOrders.length === 0) return;
+    
+    const syncPendingOrders = async () => {
+      for (const order of localUserOrders) {
+        if (userOrders.some(o => o.id === order.id)) continue;
+        try {
+          await setDoc(doc(db, "orders", order.id), order, { merge: true });
+        } catch (e) {
+          console.warn("Background sync deferred:", e);
+        }
+      }
+    };
+    
+    const timeoutId = setTimeout(syncPendingOrders, 3000);
+    return () => clearTimeout(timeoutId);
+  }, [user, localUserOrders, userOrders]);
 
   const handleOrderPlaced = (newOrder: Order) => {
     setLocalUserOrders((prev) => {
