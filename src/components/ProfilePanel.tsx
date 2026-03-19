@@ -71,7 +71,7 @@ function AccordionItem({ title, icon, children, startOpen = false }: { title: st
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order }: { order: Order; key?: React.Key }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const getStatusColor = (status: string) => {
@@ -408,8 +408,8 @@ export default function ProfilePanel({
           <AccordionItem title="My Orders" icon={<Package size={20} />}>
             {orders.length > 0 ? (
               <div className="space-y-3">
-                {orders.map(order => (
-                  <OrderCard order={order} />
+                {orders.map((order, idx) => (
+                  <OrderCard key={order.id || idx} order={order} />
                 ))}
               </div>
             ) : (

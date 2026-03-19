@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Trash2 } from 'lucide-react';
-import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { ArrowLeft, Trash2, Pencil } from 'lucide-react';
+import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
@@ -132,6 +132,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [mrp, setMrp] = useState('150');
   const [offerPrice, setOfferPrice] = useState('119');
   const [image, setImage] = useState('');
+  const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
 
   const handleSeedMenu = async () => {
     if (items.length > 0) return;
@@ -502,21 +503,40 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         updatedAt: Date.now()
       };
       await updateDoc(doc(db, "orders", selectedOrder.id), payload);
-      setOrders((prev) =>
-        prev.map((order) => (order.id === selectedOrder.id ? { ...order, ...payload } : order))
-      );
       setLocalMockOrders((prev) =>
         prev.map((order) => (order.id === selectedOrder.id ? { ...order, ...payload } : order))
       );
       setSelectedOrder(null);
     } catch (err) {
       console.error("Failed to update order:", err);
+      alert(`Failed to update order: ${(err as Error).message}`);
     } finally {
       setIsSavingOrder(false);
     }
   };
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const bulkAcceptPendingOrders = async () => {
+    const pendingOrders = displayOrders.filter(o => (o.orderStatus || o.status || 'pending') === 'pending');
+    if (pendingOrders.length === 0) return alert("No pending orders to accept.");
+
+    const isConfirmed = window.confirm(`Are you sure you want to accept ${pendingOrders.length} pending orders?`);
+    if (!isConfirmed) return;
+
+    try {
+      const batch = writeBatch(db);
+      pendingOrders.forEach(order => {
+        const orderRef = doc(db, "orders", order.id);
+        batch.update(orderRef, { orderStatus: "preparing", updatedAt: Date.now() });
+      });
+      await batch.commit(); // Sends all updates in exactly 1 network request
+      alert(`Successfully accepted ${pendingOrders.length} orders!`);
+    } catch (err: any) {
+      console.error("Bulk update failed:", err);
+      alert(`Failed to bulk update orders: ${err.message}`);
+    }
+  };
+
+  const handleSaveMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     const mrpNum = Number(mrp);
     const offerPriceNum = Number(offerPrice);
@@ -533,40 +553,70 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       alert("Please enter a valid image URL starting with http(s)://");
       return;
     }
+    
+    const payload = {
+      name,
+      desc,
+      image,
+      category,
+      mrp: mrpNum,
+      offerPrice: offerPriceNum,
+      price: offerPriceNum,
+      updatedAt: Date.now()
+    };
+
     try {
-      await addDoc(collection(db, "menu"), {
-        name,
-        desc,
-        image,
-        category,
-        mrp: Number(mrp),
-        offerPrice: Number(offerPrice),
-        price: Number(offerPrice),
-        createdAt: Date.now()
-      });
-      setName('');
-      setDesc('');
-      setMrp('150');
-      setOfferPrice('119');
-      setImage('');
-    } catch (err) {
-      console.error(err);
+      if (editingMenuId) {
+        await updateDoc(doc(db, "menu", editingMenuId), payload);
+        alert("Menu item updated successfully!");
+      } else {
+        await addDoc(collection(db, "menu"), { ...payload, createdAt: Date.now() });
+        alert("Menu item added successfully!");
+      }
+      resetMenuForm();
+    } catch (err: any) {
+      console.error("Failed to save menu item:", err);
+      alert(`Failed to save item: ${err.message || 'Check database rules.'}`);
     }
   };
 
+  const resetMenuForm = () => {
+    setName('');
+    setDesc('');
+    setCategory('Signature Blends');
+    setMrp('150');
+    setOfferPrice('119');
+    setImage('');
+    setEditingMenuId(null);
+  };
+
+  const handleEditClick = (item: any) => {
+    setName(item.name || '');
+    setDesc(item.desc || '');
+    setCategory(item.category || 'Signature Blends');
+    setMrp(String(item.mrp || '150'));
+    setOfferPrice(String(item.offerPrice ?? item.price ?? '119'));
+    setImage(item.image || '');
+    setEditingMenuId(item.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleDeleteMenu = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this menu item?")) return;
     try {
       await deleteDoc(doc(db, "menu", id));
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Failed to delete menu item:", err);
+      alert(`Failed to delete item: ${err.message || 'Check database rules.'}`);
     }
   };
 
   const handleDeleteOrder = async (id: string) => {
     try {
       await deleteDoc(doc(db, "orders", id));
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Failed to delete order:", err);
+      alert(`Failed to delete order: ${err.message || 'Check database rules.'}`);
     } finally {
       setLocalMockOrders((prev) => prev.filter((order) => order.id !== id));
     }
@@ -770,7 +820,15 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         </div>
 
         <div className="mb-14">
-          <h2 className="text-2xl font-bold tracking-tight mb-6 text-[#1D1D1F]">Live Orders</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <h2 className="text-2xl font-bold tracking-tight text-[#1D1D1F]">Live Orders</h2>
+            <button
+              onClick={bulkAcceptPendingOrders}
+              className="px-5 py-2.5 bg-[#1D1C1A] text-white text-[10px] font-semibold tracking-[0.15em] uppercase rounded-full hover:bg-black transition-colors shadow-sm"
+            >
+              Accept All Pending
+            </button>
+          </div>
           {displayOrders.length === 0 ? (
             <p className="text-gray-500 font-medium">No orders yet.</p>
           ) : (
@@ -946,8 +1004,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
           <div className="lg:col-span-1">
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-black/5 lg:sticky lg:top-6">
-              <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F]">Add New Juice</h2>
-              <form onSubmit={handleAdd} className="space-y-6">
+              <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F]">{editingMenuId ? "Edit Juice" : "Add New Juice"}</h2>
+              <form onSubmit={handleSaveMenu} className="space-y-6">
                 <div>
                   <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Category</label>
                   <select
@@ -979,9 +1037,16 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Image URL</label>
                   <input required value={image} onChange={e => setImage(e.target.value)} placeholder="https://..." className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent" />
                 </div>
-                <button type="submit" className="w-full py-4 bg-[#1D1D1F] text-white rounded-full font-medium tracking-wide hover:bg-black transition-colors duration-300 text-sm mt-4">
-                  Add Item
-                </button>
+                <div className="flex gap-3 mt-4">
+                  <button type="submit" className="flex-1 py-4 bg-[#1D1D1F] text-white rounded-full font-medium tracking-wide hover:bg-black transition-colors duration-300 text-sm">
+                    {editingMenuId ? "Update Item" : "Add Item"}
+                  </button>
+                  {editingMenuId && (
+                    <button type="button" onClick={resetMenuForm} className="flex-1 py-4 bg-gray-200 text-[#1D1D1F] rounded-full font-medium tracking-wide hover:bg-gray-300 transition-colors duration-300 text-sm">
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>
@@ -1025,12 +1090,20 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                     <h3 className="text-xl font-bold tracking-tight text-[#1D1D1F] mb-1">{item.name}</h3>
                     <p className="text-sm text-gray-500 font-light truncate max-w-md">{item.desc}</p>
                   </div>
-                  <button
-                    onClick={() => handleDeleteMenu(item.id)}
-                    className="p-4 text-gray-400 hover:text-red-500 transition-colors bg-gray-50 hover:bg-red-50 rounded-full"
-                  >
-                    <Trash2 className="w-5 h-5" strokeWidth={1.5} />
-                  </button>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => handleEditClick(item)}
+                      className="p-3 sm:p-4 text-gray-400 hover:text-blue-500 transition-colors bg-gray-50 hover:bg-blue-50 rounded-full"
+                    >
+                      <Pencil className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.5} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMenu(item.id)}
+                      className="p-3 sm:p-4 text-gray-400 hover:text-red-500 transition-colors bg-gray-50 hover:bg-red-50 rounded-full"
+                    >
+                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.5} />
+                    </button>
+                  </div>
                 </motion.div>
               ))
             )}

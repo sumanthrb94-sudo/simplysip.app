@@ -12,7 +12,7 @@ import FinalCTA from './components/FinalCTA';
 import AuthModal from './components/AuthModal';
 import ProfilePanel from './components/ProfilePanel';
 import { isSignInWithEmailLink, onAuthStateChanged, signInWithEmailLink, signOut, User } from 'firebase/auth';
-import { collection, doc, getDoc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, updateDoc, setDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { Product, UserProfile, Order } from './types';
 import { seedMenu } from './data/seedMenu';
@@ -56,6 +56,16 @@ export default function App() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    
+    // Recover pending orders from local storage to mask network latency
+    const localOrdersStr = window.localStorage.getItem('simplysip_local_orders');
+    if (localOrdersStr) {
+      try {
+        setLocalUserOrders(JSON.parse(localOrdersStr));
+      } catch (e) {
+        console.warn("Failed to parse local orders");
+      }
+    }
   }, []);
 
   const handleSubscription = (plan: "weekly" | "monthly") => {
@@ -128,6 +138,7 @@ export default function App() {
         setUserProfile(null);
         setCart({});
         window.localStorage.removeItem("simplysip_cart");
+        window.localStorage.removeItem("simplysip_local_orders");
       }
     });
   }, []);
@@ -238,7 +249,11 @@ export default function App() {
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         
         setUserOrders(myOrders);
-        setLocalUserOrders((prev) => prev.filter((lo) => !myOrders.some((mo) => mo.id === lo.id)));
+        setLocalUserOrders((prev) => {
+          const updated = prev.filter((lo) => !myOrders.some((mo) => mo.id === lo.id));
+          window.localStorage.setItem('simplysip_local_orders', JSON.stringify(updated));
+          return updated;
+        });
       } else {
         setUserOrders([]);
       }
@@ -256,11 +271,11 @@ export default function App() {
     
     const saveCart = async (cartData: Record<string, number>, retryCount = 0) => {
       try {
-        await updateDoc(doc(db, "users", user.uid), { 
+        await setDoc(doc(db, "users", user.uid), { 
           cart: cartData, 
           cartUpdatedAt: Date.now(),
           cartVersion: Date.now()  // Add version for conflict resolution
-        });
+        }, { merge: true });
       } catch (err) {
         console.error(`Failed to persist cart (attempt ${retryCount + 1}):`, err);
         if (retryCount < 3) {
@@ -300,14 +315,16 @@ export default function App() {
   const handleAddressUpdate = async (addressData: any) => {
     if (!user) return;
     const payload = { ...addressData, updatedAt: Date.now() };
-    await updateDoc(doc(db, "users", user.uid), payload);
+    await setDoc(doc(db, "users", user.uid), payload, { merge: true });
     setUserProfile((prev: any) => ({ ...(prev || {}), ...payload }));
   };
 
   const handleOrderPlaced = (newOrder: Order) => {
     setLocalUserOrders((prev) => {
       if (prev.some((o) => o.id === newOrder.id)) return prev;
-      return [newOrder, ...prev];
+      const updated = [newOrder, ...prev];
+      window.localStorage.setItem('simplysip_local_orders', JSON.stringify(updated));
+      return updated;
     });
   };
 
