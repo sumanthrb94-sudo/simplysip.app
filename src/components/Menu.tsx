@@ -472,14 +472,17 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
   );
   const layeredFlavours = products.filter((item) => item.category === "Signature Blends");
   const pureExpression = products.filter((item) => item.category === "Single Fruit Series");
-  const cartCount = (Object.values(cartItems) as number[]).reduce((sum, qty) => sum + qty, 0);
+  const cartCount = Object.keys(cartItems).reduce((sum, id) => {
+    const isValid = id === 'sub_weekly' || id === 'sub_monthly' || products.some(p => p.id === id);
+    return sum + (isValid ? (cartItems[id] ?? 0) : 0);
+  }, 0);
   const cartTotal = products.reduce((sum: number, item) => {
     const qty = cartItems[item.id] ?? 0;
     if (!qty) return sum;
     return sum + (getOfferPrice(item) * qty);
   }, 0);
   const subscriptionTotal =
-    ((cartItems.sub_weekly ?? 0) ? 799 : 0) + ((cartItems.sub_monthly ?? 0) ? 2599 : 0);
+    ((cartItems.sub_weekly ?? 0) * 799) + ((cartItems.sub_monthly ?? 0) * 2599);
   const combinedTotal = cartTotal + subscriptionTotal;
 
   useEffect(() => {

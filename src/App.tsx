@@ -38,10 +38,10 @@ export default function App() {
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<"weekly" | "monthly">("weekly");
   const initialAuthResolved = useRef(false);
-  const cartCount = Object.values(cart).reduce((sum: number, qty: number) => sum + qty, 0);
-  const subscriptionTotal =
-    ((cart.sub_weekly ?? 0) ? 799 : 0) + ((cart.sub_monthly ?? 0) ? 2599 : 0);
-  const combinedTotal = menuTotal + subscriptionTotal;
+  const cartCount = Object.keys(cart).reduce((sum, id) => {
+    const isValid = id === 'sub_weekly' || id === 'sub_monthly' || menuItems.some(item => item.id === id);
+    return sum + (isValid ? (cart[id] ?? 0) : 0);
+  }, 0);
 
   useEffect(() => {
     // Ensure page always starts from top
@@ -268,7 +268,7 @@ export default function App() {
       (snapshot) => {
         if (!snapshot.empty) {
           const data: Product[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-          setMenuItems(data);
+          setMenuItems(data.filter((item: any) => !item.isArchived));
         } else {
           // Fallback or seed if necessary
           setMenuItems(seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)));
@@ -633,7 +633,7 @@ export default function App() {
               onPlanChange={setSelectedPlan}
               onCheckout={handleOpenCheckout}
               cartCount={cartCount as number}
-              cartTotal={combinedTotal}
+              cartTotal={menuTotal}
             />
 
             {isPlanOpen && (
