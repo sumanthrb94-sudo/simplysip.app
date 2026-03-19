@@ -334,7 +334,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       setIsAddressLocked(true);
       return;
     }
-    if (!isServiceable) {
+    if (location && !isServiceable) {
       return alert("Sorry, your location is outside our service area and cannot be saved.");
     }
     if (!formData.name.trim()) {
@@ -348,9 +348,6 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     }
     if (!formData.area || formData.area === "Select Area") {
       return alert("Please select a delivery area.");
-    }
-    if (!location) {
-      return alert("Please ensure your location is detected before saving.");
     }
     try {
       await onAddressUpdate({
@@ -379,15 +376,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       alert("Your cart is empty.");
       return;
     }
-    if (!location) {
-      alert("Please save a delivery location first.");
-      return;
-    }
-    if (locationAccuracy && locationAccuracy > 1000) {
-      alert(`Your location accuracy is poor (${locationAccuracy}m). Please wait for a better signal or refresh.`);
-      return;
-    }
-    if (!isServiceable) {
+    if (location && !isServiceable) {
       alert("Sorry, we currently only deliver to Cyberabad, Secunderabad, and Hyderabad.");
       return;
     }
@@ -843,10 +832,10 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                 <button 
                   type="submit"
                   form="checkout-form"
-                  disabled={!isServiceable}
+                  disabled={location ? !isServiceable : false}
                   className="px-8 py-4 bg-[#1D1C1A] text-white font-bold tracking-[0.15em] uppercase text-[11px] rounded-2xl shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isServiceable ? "Proceed to Pay" : "Unserviceable"}
+                  {(!location || isServiceable) ? "Proceed to Pay" : "Unserviceable"}
                 </button>
               </div>
             </div>

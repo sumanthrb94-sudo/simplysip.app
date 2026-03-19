@@ -351,7 +351,7 @@ export default function ProfilePanel({
   }, [isAddressLocked]);
 
   const handleSaveAddress = async () => {
-    if (!isServiceable) {
+    if (location && !isServiceable) {
       alert("Sorry, your location is outside our service area and cannot be saved.");
       return;
     }
@@ -366,9 +366,6 @@ export default function ProfilePanel({
     }
     if (!formData.area || formData.area === "Select Area") {
       return alert("Please select your delivery area.");
-    }
-    if (!location) {
-      return alert("Please ensure your location is detected before saving.");
     }
     setIsSavingAddress(true);
     try {
