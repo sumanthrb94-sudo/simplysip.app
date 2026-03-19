@@ -698,22 +698,6 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             <div>UID: {auth.currentUser?.uid}</div>
           </div>
           <button
-            onClick={async () => {
-              if (auth.currentUser) {
-                try {
-                  await setDoc(doc(db, "admins", auth.currentUser.uid), { grantedAt: Date.now() }, { merge: true });
-                } catch (e) {
-                  console.warn("Firestore write failed, falling back to local storage override");
-                }
-                window.localStorage.setItem('simplysip_local_admin', 'true');
-                window.location.reload();
-              }
-            }}
-            className="mt-6 w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-full font-semibold transition-colors"
-          >
-            Force Grant Admin Access
-          </button>
-          <button
             onClick={onBack}
             className="mt-3 w-full px-6 py-3 bg-black hover:bg-gray-800 text-white rounded-full font-semibold transition-colors"
           >
