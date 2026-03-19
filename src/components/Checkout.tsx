@@ -17,6 +17,7 @@ interface CheckoutProps {
   onDecrementItem: (id: string) => void;
   onAddressUpdate?: (addressData: any) => void;
   onOrderPlaced?: (order: Order) => void;
+  onViewOrders?: () => void;
 }
 
 const SERVICEABLE_ZONES = [
@@ -97,7 +98,7 @@ function IngredientTicker({ desc }: { desc?: string }) {
   );
 }
 
-export default function Checkout({ user, onBack, cart, menuItems, onClearCart, onRemoveItem, onIncrementItem, onDecrementItem, onAddressUpdate, onOrderPlaced }: CheckoutProps) {
+export default function Checkout({ user, onBack, cart, menuItems, onClearCart, onRemoveItem, onIncrementItem, onDecrementItem, onAddressUpdate, onOrderPlaced, onViewOrders }: CheckoutProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [orderId, setOrderId] = useState<string | null>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -120,6 +121,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const [deliverySlot, setDeliverySlot] = useState("As soon as possible");
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod' | 'whatsapp'>('online');
+  const [completedMethod, setCompletedMethod] = useState<'online' | 'cod' | 'whatsapp' | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -145,7 +147,6 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.modal === 'checkout_payment') window.history.back();
       };
     }
   }, [step]);
@@ -402,58 +403,60 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
+  const buildOrderPayload = (paymentId: string, paymentStatus: string, appendNote: string = ""): Omit<Order, 'id'> => {
+    const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
+    return {
+      userId: user?.uid || null,
+      userEmail: user?.email || null,
+      items: cartItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        qty: cart[item.id] ?? 0,
+        price: getOfferPrice(item)
+      })),
+      subtotal: cartTotal,
+      deliveryFee,
+      total: grandTotal,
+      subscriptionType,
+      paymentId,
+      paymentStatus,
+      orderStatus: "pending",
+      deliverySlot,
+      assignedRider: "",
+      notes: notes ? (appendNote ? `${notes} (${appendNote})` : notes) : (appendNote || ""),
+      address: {
+        name: formData.name,
+        phone: formData.phone,
+        area: formData.area,
+        address: formData.address,
+        addressType: addressType
+      },
+      location: location || null,
+      locationAccuracy: locationAccuracy || null,
+      createdAt: Date.now()
+    };
+  };
+
+  const processOrder = async (orderId: string, orderData: Omit<Order, 'id'>, method: 'online' | 'cod' | 'whatsapp') => {
+    setOrderId(orderId);
+    setCompletedMethod(method);
+    if (onOrderPlaced) onOrderPlaced({ id: orderId, ...orderData });
+    onClearCart();
+    setStep(3);
+
+    try {
+      await setDoc(doc(db, "orders", orderId), orderData);
+    } catch (dbErr) {
+      console.warn("Database sync failed (check rules). Order created locally:", dbErr);
+    }
+  };
+
   const handlePaymentDone = async () => {
     setIsProcessingPayment(true);
     try {
-      // For testing, we instantly mock a successful payment and create the order logically
-      const paymentId = `mock_pay_${Date.now()}`;
       const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
-      
-      const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
-      const orderData: Omit<Order, 'id'> = {
-        userId: user?.uid || null,
-        userEmail: user?.email || null,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: cart[item.id] ?? 0,
-          price: getOfferPrice(item)
-        })),
-        subtotal: cartTotal,
-        deliveryFee,
-        total: grandTotal,
-        subscriptionType,
-        paymentId,
-        paymentStatus: "paid",
-        orderStatus: "pending",
-        deliverySlot,
-        assignedRider: "",
-        notes,
-        address: {
-          name: formData.name,
-          phone: formData.phone,
-          area: formData.area,
-          address: formData.address,
-          addressType: addressType
-        },
-        location: location || null,
-        locationAccuracy: locationAccuracy || null,
-        createdAt: Date.now()
-      };
-
-      // 1. Optimistically generate the order and show the successful screen instantly
-      setOrderId(simulatedOrderId);
-      if (onOrderPlaced) onOrderPlaced({ id: simulatedOrderId, ...orderData });
-
-      onClearCart();
-      setStep(3);
-
-      // 2. Sync to Firebase in the background
-      try {
-        await setDoc(doc(db, "orders", simulatedOrderId), orderData);
-      } catch (dbErr) {
-        console.warn("Database sync failed (check rules). Order created locally:", dbErr);
-      }
+      const orderData = buildOrderPayload(`mock_pay_${Date.now()}`, "paid");
+      await processOrder(simulatedOrderId, orderData, 'online');
     } catch (error) {
       console.error('Payment processing failed:', error);
       alert('Failed to place order. Please try again.');
@@ -462,69 +465,40 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     }
   };
 
+  const handleCOD = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
+      const orderData = buildOrderPayload(`cod_${Date.now()}`, "unpaid", "Cash on Delivery");
+      await processOrder(simulatedOrderId, orderData, 'cod');
+    } catch (error) {
+      console.error('COD processing failed:', error);
+      alert('Failed to place order. Please try again.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handleOrderViaWhatsapp = async () => {
     setIsProcessingPayment(true);
-
-    // Open window synchronously to bypass mobile Safari/Chrome popup blockers
     const whatsappWindow = window.open('about:blank', '_blank');
 
     try {
       const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
-      const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
+      const orderData = buildOrderPayload(`whatsapp_${Date.now()}`, "unpaid", "Ordered via WhatsApp");
+      
       const itemsText = cartItems
         .map((item) => {
           const desc = item.desc ? ` (${item.desc})` : "";
           return `${item.name}${desc} x${cart[item.id]} - ${rupee}${getOfferPrice(item)} each`;
         })
         .join("\n");
+        
       const locText = location || 'N/A';
       const accuracyText = locationAccuracy ? ` (accuracy ${locationAccuracy}m)` : "";
       const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${locText}${accuracyText}\n\nDelivery Slot: ${deliverySlot}\nNotes: ${notes || 'None'}\n\nOrder via WhatsApp.`;
       
-      const orderData: Omit<Order, 'id'> = {
-        userId: user?.uid || null,
-        userEmail: user?.email || null,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: cart[item.id] ?? 0,
-          price: getOfferPrice(item)
-        })),
-        subtotal: cartTotal,
-        deliveryFee,
-        total: grandTotal,
-        subscriptionType,
-        paymentId: `whatsapp_${Date.now()}`,
-        paymentStatus: "unpaid",
-        orderStatus: "pending",
-        deliverySlot,
-        assignedRider: "",
-        notes: notes ? `${notes} (Ordered via WhatsApp)` : "Ordered via WhatsApp",
-        address: {
-          name: formData.name,
-          phone: formData.phone,
-          area: formData.area,
-          address: formData.address,
-          addressType: addressType
-        },
-        location: location || null,
-        locationAccuracy: locationAccuracy || null,
-        createdAt: Date.now()
-      };
-
-      // 1. Optimistically generate the order and show the successful screen instantly
-      setOrderId(simulatedOrderId);
-      if (onOrderPlaced) onOrderPlaced({ id: simulatedOrderId, ...orderData });
-
-      onClearCart();
-      setStep(3);
-
-      // 2. Sync to Firebase in the background
-      try {
-        await setDoc(doc(db, "orders", simulatedOrderId), orderData);
-      } catch (dbErr) {
-        console.warn("Database sync failed (check rules). Order created locally:", dbErr);
-      }
+      await processOrder(simulatedOrderId, orderData, 'whatsapp');
 
       const whatsappUrl = `https://wa.me/917306928735?text=${encodeURIComponent(message)}`;
       
@@ -537,62 +511,6 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       console.error("Failed to save order:", err);
       if (whatsappWindow) whatsappWindow.close();
       alert("Failed to place order. Please check your connection and try again.");
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
-  const handleCOD = async () => {
-    setIsProcessingPayment(true);
-    try {
-      const paymentId = `cod_${Date.now()}`;
-      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
-      const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
-      
-      const orderData: Omit<Order, 'id'> = {
-        userId: user?.uid || null,
-        userEmail: user?.email || null,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          qty: cart[item.id] ?? 0,
-          price: getOfferPrice(item)
-        })),
-        subtotal: cartTotal,
-        deliveryFee,
-        total: grandTotal,
-        subscriptionType,
-        paymentId,
-        paymentStatus: "unpaid",
-        orderStatus: "pending",
-        deliverySlot,
-        assignedRider: "",
-        notes: notes ? `${notes} (Cash on Delivery)` : "Cash on Delivery",
-        address: {
-          name: formData.name,
-          phone: formData.phone,
-          area: formData.area,
-          address: formData.address,
-          addressType: addressType
-        },
-        location: location || null,
-        locationAccuracy: locationAccuracy || null,
-        createdAt: Date.now()
-      };
-
-      setOrderId(simulatedOrderId);
-      if (onOrderPlaced) onOrderPlaced({ id: simulatedOrderId, ...orderData });
-      onClearCart();
-      setStep(3);
-
-      try {
-        await setDoc(doc(db, "orders", simulatedOrderId), orderData);
-      } catch (dbErr) {
-        console.warn("Database sync failed (check rules). Order created locally:", dbErr);
-      }
-    } catch (error) {
-      console.error('COD processing failed:', error);
-      alert('Failed to place order. Please try again.');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -1026,8 +944,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
             </div>
           </div>
         ) : (
-          <div className="space-y-10">
-            <div className="bg-white p-10 md:p-16 border border-black/5 text-center flex flex-col items-center relative overflow-hidden">
+          <div className="space-y-6">
+            <div className="bg-white p-10 md:p-16 border border-black/5 rounded-3xl text-center flex flex-col items-center relative overflow-hidden shadow-[0_30px_70px_-55px_rgba(0,0,0,0.35)]">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -1035,11 +953,11 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                 className="relative w-24 h-24 mb-8"
               >
                 <motion.div
-                  className="absolute inset-0 rounded-full border border-black/20"
+                  className="absolute inset-0 rounded-full border border-green-500/20"
                   animate={{ scale: [0.9, 1.05, 0.95], opacity: [0.6, 0.2, 0.6] }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                 />
-                <div className="w-full h-full rounded-full bg-[#1A1A1A] flex items-center justify-center relative z-10">
+                <div className="w-full h-full rounded-full bg-green-500 flex items-center justify-center relative z-10 shadow-xl shadow-green-500/30">
                   <motion.svg
                     width="46"
                     height="46"
@@ -1068,23 +986,38 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                   </motion.svg>
                 </div>
               </motion.div>
-              <h3 className="text-3xl font-serif text-[#1A1A1A] mb-3 relative z-10">Order Successful</h3>
-              <p className="text-sm font-light text-gray-500 mb-6 relative z-10">
-                Your order has been placed. We will confirm shortly.
+              <h3 className="text-2xl font-bold text-[#1A1A1A] mb-2 relative z-10 font-display">
+                {completedMethod === 'whatsapp' ? 'Order Drafted!' : 'Order Received!'}
+              </h3>
+              <p className="text-sm font-medium text-gray-500 mb-8 relative z-10 max-w-[280px]">
+                {completedMethod === 'whatsapp' 
+                  ? "We've opened WhatsApp to complete your order. Please send the pre-filled message."
+                  : completedMethod === 'cod'
+                  ? "Your freshly pressed juice is being prepared. Please keep exact cash ready upon delivery."
+                  : "Your freshly pressed juice is being prepared. Payment was successful."}
               </p>
               {orderId && (
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 relative z-10">
-                  Order ID: {orderId}
+                <div className="bg-gray-50 border border-gray-100 px-4 py-2 rounded-lg text-xs uppercase tracking-widest text-gray-500 font-bold mb-8">
+                  Order ID: <span className="text-gray-900 font-mono">{orderId.slice(-8)}</span>
                 </div>
               )}
+
             </div>
 
-            <button 
-              onClick={onBack}
-              className="w-full py-5 bg-[#1A1A1A] text-white font-semibold tracking-[0.1em] hover:bg-black transition-all duration-500 uppercase text-[11px] shadow-xl shadow-black/5 hover:shadow-black/15 hover:-translate-y-0.5"
-            >
-              Back to Menu
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button 
+                onClick={() => onViewOrders?.()}
+                className="flex-1 py-4 bg-[#1A1A1A] text-white font-bold tracking-[0.15em] hover:bg-black transition-all duration-300 uppercase text-[11px] rounded-2xl shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] hover:-translate-y-0.5"
+              >
+                View My Orders
+              </button>
+              <button 
+                onClick={onBack}
+                className="flex-1 py-4 bg-white text-[#1A1A1A] border border-black/10 font-bold tracking-[0.15em] hover:bg-gray-50 hover:border-black/20 transition-all duration-300 uppercase text-[11px] rounded-2xl hover:-translate-y-0.5"
+              >
+                Return to Menu
+              </button>
+            </div>
           </div>
         )}
       </div>

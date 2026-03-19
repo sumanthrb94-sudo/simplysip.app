@@ -586,6 +586,10 @@ export default function App() {
               onDecrementItem={handleDecrementItem}
               onAddressUpdate={handleAddressUpdate}
               onOrderPlaced={handleOrderPlaced}
+              onViewOrders={() => {
+                setIsCheckoutOpen(false);
+                setIsProfileOpen(true);
+              }}
             />
           </motion.div>
         ) : (
