@@ -101,11 +101,11 @@ const buildProduct = (item: any, index: number): ProductData => {
 function SweetnessScale({ value }: { value: number }) {
   const clamped = Math.max(1, Math.min(5, value));
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5 mt-1">
       {Array.from({ length: 5 }, (_, idx) => (
         <span
           key={idx}
-          className={`h-1.5 w-6 rounded-full ${idx < clamped ? "bg-[#1D1C1A]" : "bg-black/10"}`}
+          className={`h-1.5 w-3 rounded-full ${idx < clamped ? "bg-green-600" : "bg-gray-200"}`}
         />
       ))}
     </div>
@@ -229,18 +229,13 @@ function ProductPanel({
   qty: number;
 }) {
   if (!product) return null;
-  const panelVariants = {
-    hidden: { opacity: 0, scale: 0.98, y: 20 },
-    visible: { opacity: 1, scale: 1, y: 0 },
-    exit: { opacity: 0, scale: 0.98, y: 20 }
-  };
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           key="product-backdrop"
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80]"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -249,129 +244,150 @@ function ProductPanel({
         />
       )}
       {isOpen && (
+        <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center pointer-events-none sm:p-6">
         <motion.div
           key="product-panel"
-          className="fixed z-[90] bg-white left-1/2 top-1/2 w-[95vw] sm:w-[90vw] max-w-4xl h-[90vh] sm:h-[85vh] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col sm:flex-row"
-          variants={panelVariants}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="bg-white w-full sm:max-w-4xl h-[85vh] sm:h-[80vh] sm:max-h-[800px] rounded-t-[1.5rem] sm:rounded-[2rem] overflow-hidden shadow-2xl flex flex-col sm:flex-row pointer-events-auto"
+          initial={{ opacity: 0, y: "100%" }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: "100%" }}
+          transition={{ type: "spring", damping: 28, stiffness: 250 }}
         >
-            <div className="relative w-full h-[35%] min-h-[200px] sm:h-full sm:w-1/2 shrink-0 bg-[#F7F5F0]">
+            {/* Image Area */}
+            <div className="relative w-full h-[40%] min-h-[280px] sm:min-h-0 sm:h-full sm:w-[45%] shrink-0 bg-[#F4F4F5] overflow-hidden group">
+              {/* Subtle top gradient on mobile to ensure the close button remains visible against any image */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-transparent z-10 pointer-events-none sm:hidden" />
               <img
                 src={product.image}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-[center_50%] scale-[1.15] sm:scale-105 drop-shadow-2xl mix-blend-multiply transition-transform duration-700 group-hover:scale-[1.20] sm:group-hover:scale-[1.10]"
               />
               <button 
                 onClick={onClose} 
-                className="absolute top-4 left-4 sm:hidden h-10 w-10 flex items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-md z-10 text-[#1D1C1A]"
+                className="absolute top-4 right-4 sm:hidden h-8 w-8 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-md text-gray-900 z-20"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             
-            <div className="flex-1 flex flex-col min-h-0 relative bg-white w-full sm:w-1/2">
-              <div className="hidden sm:flex absolute top-6 right-6 z-10">
+            {/* Content Area */}
+            <div className="flex-1 flex flex-col min-h-0 relative bg-white w-full sm:w-[55%]">
+              <div className="hidden sm:flex absolute top-4 right-4 z-10">
                 <button 
                   onClick={onClose} 
-                  className="h-10 w-10 flex items-center justify-center rounded-full bg-[#F7F5F0] hover:bg-gray-200 transition-colors text-[#1D1C1A]"
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 sm:p-10 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth">
-                <div className="mb-6 sm:pr-10">
-                  <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                    <span className="inline-block px-3 py-1 text-[9px] sm:text-[10px] uppercase tracking-[0.25em] font-bold text-[#1D1C1A] bg-[#F7F5F0] rounded-full">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-track]:bg-transparent">
+                
+                {/* Title & Tags */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    {product.bestSeller && (
+                      <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold text-amber-800 bg-amber-100 rounded">
+                        Bestseller
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold text-green-800 bg-green-100 rounded">
                       Cold Pressed
                     </span>
-                    <span className="inline-block px-3 py-1 text-[9px] sm:text-[10px] uppercase tracking-[0.25em] font-bold text-white bg-[#1D1C1A] rounded-full">
-                      25% Off
-                    </span>
                   </div>
-                  <h3 className="text-3xl sm:text-4xl font-bold text-[#1D1C1A] tracking-tight font-display mb-2">
+                  <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-1">
                     {product.name}
                   </h3>
-                  <p className="text-sm text-gray-500 font-medium">
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed">
                     {product.tagline}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  <div className="bg-[#F7F5F0] rounded-2xl p-4 sm:p-5">
-                    <div className="text-[9px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-1">Calories</div>
-                    <div className="text-lg sm:text-xl font-bold text-[#1D1C1A]">{product.nutrition.calories} kcal</div>
-                  </div>
-                  <div className="bg-[#F7F5F0] rounded-2xl p-4 sm:p-5">
-                    <div className="text-[9px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-1">Vitamin</div>
-                    <div className="text-lg sm:text-xl font-bold text-[#1D1C1A]">{product.nutrition.vitamin}</div>
-                  </div>
+                {/* Price (In-flow) */}
+                <div className="flex items-end gap-2">
+                  <span className="text-2xl font-bold text-gray-900">{"\u20B9"}{product.offerPrice}</span>
+                  {product.mrp && (
+                    <span className="text-sm text-gray-400 line-through mb-1">{"\u20B9"}{product.mrp}</span>
+                  )}
+                  {product.mrp && (
+                     <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded mb-1 ml-1">
+                       {Math.round(((product.mrp - product.offerPrice) / product.mrp) * 100)}% OFF
+                     </span>
+                  )}
                 </div>
 
-                <div className="mb-8">
-                  <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-4">
-                    Ingredients
-                  </h4>
+                <hr className="border-gray-100" />
+
+                {/* Ingredients */}
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">What's inside</h4>
                   <div className="flex flex-wrap gap-2">
                     {product.ingredients.map(ing => (
-                      <span key={ing} className="px-4 py-2 bg-white border border-gray-200 rounded-full text-xs font-semibold text-[#1D1C1A]">
+                      <span key={ing} className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700">
                         {ing}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div className="mb-8">
-                  <h4 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-4">
-                    Benefits
-                  </h4>
-                  <ul className="space-y-3">
+                {/* Benefits */}
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Why you'll love it</h4>
+                  <div className="grid grid-cols-2 gap-3">
                     {product.benefits.map((benefit, idx) => (
-                      <li key={idx} className="flex items-center gap-3 text-sm font-semibold text-[#1D1C1A]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1D1C1A]" />
-                        {benefit}
-                      </li>
+                      <div key={idx} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <Star size={14} className="text-green-600 fill-green-600 shrink-0" />
+                        <span className="font-medium">{benefit}</span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-4 p-4 sm:p-5 bg-[#F7F5F0] rounded-2xl mb-4">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sweetness</span>
-                  <SweetnessScale value={product.sweetness} />
+                {/* Nutrition Grid */}
+                <div className="pb-4">
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3">Nutritional Profile</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Energy</span>
+                      <span className="text-sm font-bold text-gray-900">{product.nutrition.calories} kcal</span>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Vitamins</span>
+                      <span className="text-sm font-bold text-gray-900">{product.nutrition.vitamin}</span>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sweetness</span>
+                      <SweetnessScale value={product.sweetness} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="shrink-0 p-4 sm:px-10 sm:py-6 bg-white border-t border-gray-100 flex items-center justify-between gap-4 z-10">
-                <div>
-                  <div className="text-[9px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-1">Total Price</div>
-                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                    <div className="text-xl sm:text-3xl font-bold text-[#1D1C1A]">
-                      {"\u20B9"}{product.offerPrice}
-                    </div>
-                    {product.mrp && (
-                      <div className="text-xs sm:text-sm text-gray-400 line-through font-medium mt-0.5 sm:mt-0">
-                        {"\u20B9"}{product.mrp}
-                      </div>
+              {/* Zomato-style Sticky Bottom Bar */}
+              <div className="shrink-0 p-4 sm:p-5 bg-white border-t border-gray-100 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] flex items-center justify-between gap-4 z-10">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Item Total</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-xl font-bold text-gray-900">{"\u20B9"}{product.offerPrice * (qty || 1)}</span>
+                    {product.mrp && qty > 0 && (
+                      <span className="text-xs text-gray-400 line-through">{"\u20B9"}{product.mrp * qty}</span>
                     )}
                   </div>
                 </div>
 
-                <div>
+                <div className="min-w-[130px] sm:min-w-[150px]">
                   {qty > 0 ? (
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl h-12 px-2 shadow-sm">
                       <button
                         onClick={() => onDecrement(product)}
-                        className="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-full border-2 border-[#1D1C1A] text-lg font-semibold text-[#1D1C1A] flex items-center justify-center hover:bg-black/5 transition-colors"
+                        className="w-10 h-10 flex items-center justify-center text-green-700 font-bold text-xl hover:bg-green-100 rounded-lg transition-colors"
                       >
                         -
                       </button>
-                      <span className="text-base sm:text-lg font-bold w-4 sm:w-6 text-center text-[#1D1C1A]">{qty}</span>
+                      <span className="text-green-800 font-bold text-sm">{qty}</span>
                       <button
                         onClick={() => onIncrement(product)}
-                        className="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-full border-2 border-[#1D1C1A] bg-[#1D1C1A] text-lg font-semibold text-white flex items-center justify-center hover:bg-black transition-colors"
+                        className="w-10 h-10 flex items-center justify-center text-green-700 font-bold text-xl hover:bg-green-100 rounded-lg transition-colors"
                       >
                         +
                       </button>
@@ -379,7 +395,7 @@ function ProductPanel({
                   ) : (
                     <button
                       onClick={() => onIncrement(product)}
-                      className="px-5 py-3.5 sm:px-8 sm:py-4 bg-[#1D1C1A] text-white rounded-full text-[10px] sm:text-xs font-bold tracking-[0.15em] uppercase hover:bg-black transition-colors whitespace-nowrap"
+                      className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold tracking-wide transition-colors shadow-sm"
                     >
                       Add to Cart
                     </button>
@@ -388,6 +404,7 @@ function ProductPanel({
               </div>
             </div>
         </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );
