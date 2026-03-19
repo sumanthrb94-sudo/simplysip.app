@@ -1,6 +1,6 @@
 import React, { useState, useEffect, ChangeEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Package, MapPin, LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { X, Package, MapPin, LogOut, ChevronDown, LayoutDashboard, Home, Briefcase, Navigation, ShoppingBag, Clock, FileText, Receipt } from 'lucide-react';
 import { Order, UserProfile } from '../types';
 
 const SERVICEABLE_ZONES = [
@@ -38,18 +38,18 @@ function AccordionItem({ title, icon, children, startOpen = false }: { title: st
   const [isOpen, setIsOpen] = useState(startOpen);
 
   return (
-    <div className="border-b border-black/10">
+    <div className="bg-white rounded-[2rem] shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] border border-black/5 mb-5 overflow-hidden transition-all duration-300">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-5 text-left"
+        className="w-full flex items-center justify-between p-5 sm:p-6 text-left hover:bg-[#FAFAFA] transition-colors"
       >
-        <div className="flex items-center gap-4">
-          <div className="text-gray-500">{icon}</div>
-          <span className="font-semibold text-[#1D1C1A]">{title}</span>
+        <div className="flex items-center gap-4 text-[#1D1C1A]">
+          <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center border border-black/5">{icon}</div>
+          <span className="font-bold tracking-tight text-lg">{title}</span>
         </div>
         <ChevronDown
           size={20}
-          className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
       <AnimatePresence>
@@ -59,9 +59,9 @@ function AccordionItem({ title, icon, children, startOpen = false }: { title: st
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="overflow-hidden"
+            className="overflow-hidden bg-white"
           >
-            <div className="pb-6 pt-1 text-sm">
+            <div className="px-5 sm:px-6 pb-6 pt-1 text-sm">
               {children}
             </div>
           </motion.div>
@@ -76,33 +76,40 @@ function OrderCard({ order }: { order: Order; key?: React.Key }) {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'delivered': return 'bg-green-50 text-green-700 border-green-200';
-      case 'cancelled': return 'bg-red-50 text-red-700 border-red-200';
-      case 'paid': return 'bg-blue-50 text-blue-700 border-blue-200';
-      default: return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'out-for-delivery': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-orange-100 text-orange-800';
     }
   };
 
+  const itemString = order.items?.map((i: any) => `${i.qty}x ${i.name}`).join(', ') || '';
+
   return (
-    <div className="border border-black/5 rounded-xl transition-shadow hover:shadow-md">
-      <button onClick={() => setIsExpanded(!isExpanded)} className="w-full text-left p-4">
+    <div className="bg-[#FAFAFA] border border-black/5 rounded-2xl transition-all hover:border-black/15 overflow-hidden">
+      <button onClick={() => setIsExpanded(!isExpanded)} className="w-full text-left p-4 sm:p-5">
         <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={`px-2 py-0.5 rounded border text-[9px] font-bold uppercase tracking-widest ${getStatusColor(order.orderStatus)}`}>
-                {order.orderStatus || 'pending'}
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-gray-400">
-                {new Date(order.createdAt).toLocaleString('en-IN', {
-                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                })}
+          <div className="flex-1 pr-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-sm ${getStatusColor(order.orderStatus)}`}>
+                {(order.orderStatus || 'pending').replace(/-/g, ' ')}
               </span>
             </div>
-            <p className="font-semibold text-gray-800">{order.items?.length || 0} item{(order.items?.length || 0) > 1 ? 's' : ''}</p>
+            <p className="font-bold text-sm text-[#1A1A1A] line-clamp-1 mb-1 leading-snug">
+              {itemString}
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold flex items-center gap-1.5">
+              <Clock size={10} />
+              {new Date(order.createdAt).toLocaleString('en-IN', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+              })}
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <p className="font-bold text-lg text-[#1D1C1A]">{rupee}{order.total}</p>
-            <ChevronDown size={16} className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+          <div className="text-right shrink-0 flex flex-col items-end">
+            <p className="font-bold text-base text-[#1A1A1A]">{rupee}{order.total}</p>
+            <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 mt-2 hover:text-blue-800 transition-colors">
+              {isExpanded ? 'Hide' : 'Details'} <ChevronDown size={12} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
           </div>
         </div>
       </button>
@@ -115,19 +122,38 @@ function OrderCard({ order }: { order: Order; key?: React.Key }) {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden"
           >
-            <div className="border-t border-black/5 px-4 pt-4 pb-5 space-y-3">
-              <h4 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">Order Summary</h4>
-              {order.items && order.items.map((item: any, index: number) => (
-                <div key={index} className="flex justify-between items-center text-sm">
-                  <span className="text-gray-700 max-w-[80%] truncate">{item.name} &times;{item.qty}</span>
-                  <span className="font-medium text-gray-800">{rupee}{item.price * item.qty}</span>
+            <div className="border-t border-black/5 px-4 sm:px-5 pt-4 pb-5 space-y-4 bg-white/50">
+              <div>
+                <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 flex items-center gap-1.5 mb-3">
+                  <Receipt size={12} /> Receipt
+                </h4>
+                <div className="space-y-2.5">
+                  {order.items && order.items.map((item: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-2 max-w-[75%]">
+                        <span className="w-5 h-5 rounded bg-[#F9F8F6] border border-black/5 text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {item.qty}
+                        </span>
+                        <span className="font-semibold text-[#1A1A1A] truncate">{item.name}</span>
+                      </div>
+                      <span className="font-bold text-[#1A1A1A]">{rupee}{item.price * item.qty}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-dashed border-black/10">
+                    <span className="text-gray-500 font-medium">Delivery Fee</span>
+                    <span className="font-semibold text-[#1A1A1A]">{order.deliveryFee === 0 ? 'Free' : `${rupee}${order.deliveryFee}`}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-black/10">
+                    <span className="font-bold text-[#1A1A1A]">Total Paid</span>
+                    <span className="font-bold text-lg text-[#1A1A1A]">{rupee}{order.total}</span>
+                  </div>
                 </div>
-              ))}
+              </div>
               
-              <div className="pt-3 border-t border-black/5 mt-3 grid grid-cols-2 gap-3">
+              <div className="pt-4 border-t border-black/5 grid grid-cols-2 gap-4">
                 <div>
                   <span className="block text-[9px] uppercase tracking-widest text-gray-400 font-semibold mb-0.5">Payment</span>
-                  <span className="text-xs text-gray-800 capitalize font-medium">{order.paymentStatus || 'unpaid'}</span>
+                  <span className="text-xs text-[#1A1A1A] capitalize font-bold">{order.paymentStatus || 'unpaid'}</span>
                 </div>
                 {order.deliverySlot && (
                   <div>
@@ -143,19 +169,11 @@ function OrderCard({ order }: { order: Order; key?: React.Key }) {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-black/5 mt-3 space-y-1">
-                 <p className="text-xs text-gray-500 truncate">
-                   <span className="font-semibold">Date & Time:</span> {new Date(order.createdAt).toLocaleString('en-IN', {
-                     year: 'numeric', month: 'short', day: 'numeric',
-                     hour: '2-digit', minute: '2-digit', hour12: true
-                   })}
-                 </p>
-                 <p className="text-xs text-gray-500 truncate">
-                   <span className="font-semibold">Order ID:</span> {order.id}
-                 </p>
-                 <p className="text-xs text-gray-500 truncate">
-                   <span className="font-semibold">Payment ID:</span> {order.paymentId || 'N/A'}
-                 </p>
+              <div className="pt-4 border-t border-black/5 space-y-2">
+                 <div className="text-xs flex items-center justify-between text-gray-500 bg-white p-2 rounded-lg border border-black/5">
+                   <span className="font-semibold uppercase tracking-wider text-[9px]">Order ID</span> 
+                   <span className="font-mono tracking-wider text-[#1A1A1A] truncate ml-2">{order.id}</span>
+                 </div>
               </div>
             </div>
           </motion.div>
@@ -392,20 +410,31 @@ export default function ProfilePanel({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: '100%' }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-0 right-0 z-[80] w-full max-w-md h-full bg-white shadow-2xl flex flex-col"
+          className="fixed top-0 right-0 z-[80] w-full max-w-md h-full bg-[#F9F8F6] shadow-2xl flex flex-col"
         >
-        <div className="flex items-center justify-between p-6 border-b border-black/10 shrink-0">
-          <div>
-            <h2 className="text-lg font-semibold text-[#1D1C1A]">{user?.displayName || 'My Account'}</h2>
-            <p className="text-xs text-gray-500">{user?.email}</p>
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-black">
-            <X size={20} />
+        <div className="bg-white px-6 pt-10 pb-8 rounded-b-[2.5rem] shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] border-b border-black/5 shrink-0 z-10 relative">
+          <button 
+            onClick={onClose} 
+            className="absolute top-6 right-6 p-2 bg-[#F9F8F6] rounded-full text-gray-500 hover:text-[#1A1A1A] hover:bg-gray-200 transition-colors"
+          >
+            <X size={18} />
           </button>
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 rounded-full bg-[#1D1C1A] text-white flex items-center justify-center text-2xl font-bold font-display shadow-lg">
+              {(user?.displayName || userProfile?.name || 'U').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold mb-1">Welcome back</p>
+              <h2 className="text-2xl font-bold tracking-tight text-[#1D1C1A] font-display">
+                {user?.displayName || userProfile?.name || 'My Account'}
+              </h2>
+              <p className="text-xs text-gray-500 font-medium mt-0.5 truncate max-w-[200px]">{user?.email || user?.phoneNumber}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6">
-          <AccordionItem title="My Orders" icon={<Package size={20} />}>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-2 [&::-webkit-scrollbar]:hidden">
+          <AccordionItem title="My Orders" icon={<ShoppingBag size={20} />} startOpen={true}>
             {orders.length > 0 ? (
               <div className="space-y-3">
                 {orders.map((order, idx) => (
@@ -413,125 +442,165 @@ export default function ProfilePanel({
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No orders yet.</p>
+              <div className="text-center py-8 bg-[#FAFAFA] rounded-2xl border border-black/5">
+                <ShoppingBag size={32} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-sm font-bold text-[#1A1A1A]">No orders yet</p>
+                <p className="text-xs text-gray-500 mt-1">When you place an order, it will appear here.</p>
+              </div>
             )}
           </AccordionItem>
 
-          <AccordionItem title="My Address" icon={<MapPin size={20} />}>
-            <div className="space-y-4">
-              <input
-                type="text" name="name" value={formData.name} onChange={handleInputChange}
-                placeholder="Full Name"
-                disabled={isAddressLocked}
-                className="w-full rounded-xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
-              />
-              <input
-                type="tel" name="phone" value={formData.phone} onChange={handleInputChange}
-                placeholder="Phone Number"
-                disabled={isAddressLocked}
-                className="w-full rounded-xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
-              />
-              <select
-                name="area" value={formData.area} onChange={handleInputChange}
-                disabled={isAddressLocked}
-                className="w-full rounded-xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black appearance-none disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
-              >
-                {SERVICEABLE_ZONES.map(zone => (
-                  <option key={zone.name} value={zone.name} disabled={zone.name === "Select Area"}>{zone.name}</option>
-                ))}
-              </select>
-              <textarea
-                name="address" value={formData.address} onChange={handleInputChange}
-                placeholder="Complete Address"
-                disabled={isAddressLocked}
-                className="w-full rounded-xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black resize-none h-24 disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
-              />
-              <div className="flex items-center gap-x-6">
-                {['Home', 'Office', 'Other'].map(type => (
-                  <label key={type} className="flex items-center gap-2">
-                    <input
-                      type="radio" name="addressType" value={type}
-                      checked={addressType === type}
-                      onChange={(e) => setAddressType(e.target.value)}
-                      disabled={isAddressLocked}
-                      className="h-4 w-4 text-black border-gray-300 focus:ring-black disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                    <span className="text-sm text-gray-600">{type}</span>
-                  </label>
-                ))}
+          <AccordionItem title="Delivery Details" icon={<MapPin size={20} />}>
+            {isAddressLocked ? (
+              <div className="border border-black/10 rounded-2xl p-5 bg-[#FAFAFA] relative overflow-hidden transition-all hover:border-black/20 mt-1">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#1A1A1A]"></div>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center shrink-0 text-[#1A1A1A]">
+                    {addressType === 'Office' ? <Briefcase size={18} /> : addressType === 'Home' ? <Home size={18} /> : <MapPin size={18} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4 mb-1">
+                      <h4 className="text-sm font-bold text-[#1A1A1A]">{addressType} Address</h4>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddressLocked(false)}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-3 py-1.5 rounded-full transition-colors"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed mb-3 truncate whitespace-normal line-clamp-2 pr-4">
+                      {formData.address}, {formData.area}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#1A1A1A] bg-white border border-black/5 px-3 py-1.5 rounded-xl inline-flex shadow-sm">
+                      <span>{formData.name}</span>
+                      <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                      <span>{formData.phone}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
+            ) : (
+              <div className="space-y-6 pt-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Full Name</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light" placeholder="e.g. John Doe" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Phone Number</label>
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light" placeholder="10-digit mobile number" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Delivery Area</label>
+                    <div className="relative">
+                      <select name="area" value={formData.area} onChange={handleInputChange} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all appearance-none font-medium text-[#1A1A1A]" required>
+                        {SERVICEABLE_ZONES.map(zone => (
+                          <option key={zone.name} value={zone.name} disabled={zone.name === "Select Area"}>{zone.name}</option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">{"\u25BE"}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Complete Address</label>
+                    <textarea name="address" value={formData.address} onChange={handleInputChange} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all resize-none h-[100px] font-medium placeholder:text-gray-400 placeholder:font-light" placeholder="House/Flat No, Building Name, Street, Landmark" required />
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Save Address As</label>
+                    <div className="flex gap-3">
+                      {['Home', 'Office', 'Other'].map(type => {
+                        const Icon = type === 'Office' ? Briefcase : type === 'Home' ? Home : MapPin;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setAddressType(type)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border transition-all text-sm font-bold tracking-wide ${
+                              addressType === type 
+                                ? 'border-[#1A1A1A] bg-[#1A1A1A] text-white shadow-md shadow-black/10' 
+                                : 'border-black/10 bg-white text-gray-500 hover:border-black/30 hover:text-[#1A1A1A]'
+                            }`}
+                          >
+                            <Icon size={16} />
+                            {type}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              <div className="space-y-3 pt-4 border-t border-black/5">
-                <label className="block text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400">Location (Auto-detected)</label>
-                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                  <input 
-                    type="text"
-                    value={
-                      isAddressLocked
-                        ? (formData.area && formData.area !== "Select Area" ? formData.area : (location || "Not set"))
-                        : isLocating
-                          ? "Detecting location..."
-                          : location
-                            ? isServiceable ? (detectedZone || "Searching for nearest zone...") : "Unserviceable Area"
-                            : "Location required"
-                    }
-                    readOnly
-                    disabled={isAddressLocked}
-                    className="w-full rounded-xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none font-light disabled:opacity-60 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    placeholder="Location required"
-                  />
-                  {!isAddressLocked && (
+                  <div className="p-5 bg-blue-50/50 border border-blue-100 rounded-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 flex items-center gap-1.5">
+                        <Navigation size={12} /> Delivery Location
+                      </label>
+                      {locationAccuracy !== null && !isLocating && (
+                        <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full ${
+                          locationAccuracy <= 50 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {locationAccuracy <= 50 ? 'Accurate' : 'Approximate'}
+                        </span>
+                      )}
+                    </div>
+                    
                     <button
                       type="button"
                       onClick={requestLocation}
-                      className="px-5 py-3 rounded-full border border-black/10 text-[10px] font-semibold tracking-[0.2em] uppercase text-[#1D1C1A] hover:border-black/20 transition-colors"
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold text-sm tracking-wide hover:bg-blue-50 transition-colors shadow-sm mb-3"
                     >
-                      {isLocating ? "Locating..." : "Retry"}
+                      <Navigation size={16} className={isLocating ? 'animate-pulse' : ''} />
+                      {isLocating ? "Detecting location..." : location ? "Update my location" : "Use my current location"}
                     </button>
-                  )}
-                </div>
-                {locationAccuracy !== null && !isAddressLocked && (
-                  <div className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${ locationAccuracy <= 10 ? 'text-green-600' : locationAccuracy <= 50 ? 'text-yellow-600' : locationAccuracy <= 1000 ? 'text-gray-500' : 'text-red-600' }`}>
-                    Accuracy: {locationAccuracy}m
-                    {locationAccuracy <= 10 && ' (Excellent)'}
-                    {locationAccuracy > 10 && locationAccuracy <= 50 && ' (Good)'}
-                    {locationAccuracy > 50 && locationAccuracy <= 1000 && ' (Fair)'}
-                    {locationAccuracy > 1000 && ' (Poor)'}
-                  </div>
-                )}
-                {locationError && !isAddressLocked && <div className="text-[10px] uppercase tracking-[0.2em] text-red-500">{locationError}</div>}
-                {!isServiceable && location && !isAddressLocked && (
-                  <div className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-xl border border-red-100">
-                    Location Unserviceable. We currently only deliver to Cyberabad, Secunderabad, and Hyderabad.
-                  </div>
-                )}
-              </div>
 
-              {isAddressLocked ? (
-                <button
-                  onClick={() => setIsAddressLocked(false)}
-                  className="w-full py-3 border border-black/10 text-[#1D1C1A] font-semibold tracking-wide text-xs rounded-full hover:border-black/20 transition-colors"
-                >
-                  Edit Address
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveAddress}
-                  disabled={isSavingAddress}
-                  className="w-full py-3 bg-[#1D1C1A] text-white font-semibold tracking-wide text-xs rounded-full hover:bg-black transition-colors disabled:opacity-60"
-                >
-                  {isSavingAddress ? 'Saving...' : 'Save Address'}
-                </button>
-              )}
-            </div>
+                    {locationError && (
+                      <div className="text-xs font-bold text-red-500 mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                        {locationError}
+                      </div>
+                    )}
+                    
+                    {location && !isLocating && (
+                       <div className="bg-white rounded-xl p-3 border border-black/5 text-xs flex items-start gap-2 shadow-sm">
+                          <div className={`mt-0.5 shrink-0 ${isServiceable ? 'text-green-500' : 'text-red-500'}`}>
+                            <MapPin size={16} />
+                          </div>
+                          <div>
+                             <div className={`font-bold mb-0.5 ${isServiceable ? 'text-[#1A1A1A]' : 'text-red-600'}`}>
+                               {isServiceable ? (detectedZone || "Serviceable Area") : "Location Unserviceable"}
+                             </div>
+                             <div className="text-[10px] text-gray-500 font-mono tracking-wider">{location}</div>
+                             {!isServiceable && (
+                                <div className="mt-1 text-red-600 opacity-90">
+                                  We currently only deliver to Cyberabad, Secunderabad, and Hyderabad within a 40km radius.
+                                </div>
+                             )}
+                          </div>
+                       </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2">
+                    <button 
+                      type="button" 
+                      onClick={handleSaveAddress}
+                      disabled={isSavingAddress}
+                      className="w-full py-4 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] disabled:opacity-60"
+                    >
+                      {isSavingAddress ? 'Saving...' : 'Save Address'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </AccordionItem>
         </div>
 
-        <div className="p-6 mt-auto shrink-0">
+        <div className="p-5 sm:p-6 mt-auto shrink-0 bg-white border-t border-black/5 relative z-10">
           {isAdmin && onAdminOpen && (
             <button
               onClick={onAdminOpen}
-              className="w-full flex items-center justify-center gap-3 py-3 mb-3 bg-[#1D1C1A] text-white font-semibold tracking-wide text-sm rounded-full hover:bg-black transition-colors"
+              className="w-full flex items-center justify-center gap-3 py-3.5 mb-3 bg-[#1D1C1A] text-white font-bold tracking-widest text-[11px] uppercase rounded-xl hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]"
             >
               <LayoutDashboard size={16} />
               Admin Dashboard
@@ -539,7 +608,7 @@ export default function ProfilePanel({
           )}
           <button
             onClick={onLogout}
-            className="w-full flex items-center justify-center gap-3 py-3 border border-black/10 text-[#1D1C1A] font-semibold tracking-wide text-sm rounded-full hover:border-black/20 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-3.5 border-2 border-black/10 text-[#1D1C1A] font-bold tracking-widest text-[11px] uppercase rounded-xl hover:border-black/20 hover:bg-[#FAFAFA] transition-all"
           >
             <LogOut size={16} />
             Logout

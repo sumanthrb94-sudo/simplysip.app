@@ -1,7 +1,7 @@
-﻿﻿import { useEffect, useRef, useState } from 'react';
+﻿﻿﻿﻿import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { X } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 import { Product as ProductData } from '../types';
 import { getOfferPrice, getMrp } from '../pricing';
 
@@ -433,6 +433,19 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
     return () => window.clearTimeout(timer);
   }, [isPanelOpen, selectedProduct]);
 
+  // Intercept hardware back button for the product panel
+  useEffect(() => {
+    if (isPanelOpen) {
+      window.history.pushState({ modal: 'product' }, '');
+      const handlePopState = () => setIsPanelOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'product') window.history.back();
+      };
+    }
+  }, [isPanelOpen]);
+
   const handleIncrementClick = (product: ProductData) => {
     onIncrement(product.id);
   };
@@ -510,12 +523,33 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
           <p className="text-[11px] sm:text-xs uppercase tracking-[0.3em] text-[#6F6A63] font-medium">Flat 25% Off {"\u2014"} Limited Launch Offer</p>
         </motion.div>
 
+        <div className="sticky top-[70px] sm:top-[85px] z-40 bg-white/80 backdrop-blur-xl border-y border-black/5 py-4 px-4 sm:px-6 -mx-4 sm:mx-0 mb-8 sm:mb-12 flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button onClick={() => {
+            const el = document.getElementById('subscriptions');
+            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
+          }} className="px-5 py-3 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] flex items-center gap-2 hover:-translate-y-0.5 transition-transform">
+            <Star size={14} className="text-yellow-400 fill-yellow-400" /> Only Subscriptions
+          </button>
+          <button onClick={() => {
+            const el = document.getElementById('signature');
+            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
+          }} className="px-5 py-3 bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 hover:bg-gray-100 transition-colors">
+            Signature Blends
+          </button>
+          <button onClick={() => {
+            const el = document.getElementById('pure');
+            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
+          }} className="px-5 py-3 bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 hover:bg-gray-100 transition-colors">
+            Single Fruit Series
+          </button>
+        </div>
+
         {menuItems.length === 0 ? (
           <div className="text-center py-12 text-gray-500 font-medium">Loading collection...</div>
         ) : (
           <div className="space-y-16 sm:space-y-20">
             <CartState count={cartCount} total={combinedTotal} onCheckout={onCheckout} />
-            <div className="space-y-8 sm:space-y-10">
+            <div id="signature" className="space-y-8 sm:space-y-10 scroll-mt-40">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">Layered Flavours</p>
@@ -528,7 +562,7 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
               {renderGrid(layeredFlavours)}
             </div>
 
-            <div className="space-y-8 sm:space-y-10">
+            <div id="pure" className="space-y-8 sm:space-y-10 scroll-mt-40">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">Pure Expression</p>

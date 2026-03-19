@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -24,8 +24,6 @@ export default function App() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [menuItems, setMenuItems] = useState<Product[]>([]);
   const [menuTotal, setMenuTotal] = useState(0);
-  const [selectedPlan, setSelectedPlan] = useState<"weekly" | "monthly">("weekly");
-  const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -36,6 +34,10 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPendingCount, setAdminPendingCount] = useState(0);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<"weekly" | "monthly">("weekly");
+  const initialAuthResolved = useRef(false);
   const cartCount = Object.values(cart).reduce((sum: number, qty: number) => sum + qty, 0);
   const subscriptionTotal =
     ((cart.sub_weekly ?? 0) ? 799 : 0) + ((cart.sub_monthly ?? 0) ? 2599 : 0);
@@ -78,8 +80,6 @@ export default function App() {
       next[plan === "weekly" ? "sub_weekly" : "sub_monthly"] = 1;
       return next;
     });
-    setSelectedPlan(plan);
-    setIsPlanOpen(false);
     setIsCheckoutOpen(true);
   };
 
@@ -144,6 +144,12 @@ export default function App() {
               console.warn("Failed to load admin status:", err);
             }
           });
+
+        // Trigger the premium splash screen transition immediately after a login event
+        if (initialAuthResolved.current) {
+          setShowSplash(true);
+          setTimeout(() => setShowSplash(false), 2000);
+        }
       } else {
         setIsAdminOpen(false);
         setIsCartHydrated(false);
@@ -152,6 +158,12 @@ export default function App() {
         setCart({});
         window.localStorage.removeItem("simplysip_cart");
         window.localStorage.removeItem("simplysip_local_orders");
+      }
+
+      // Handle the very first page load initialization
+      if (!initialAuthResolved.current) {
+        initialAuthResolved.current = true;
+        setTimeout(() => setShowSplash(false), 2000);
       }
     });
   }, []);
@@ -439,12 +451,108 @@ export default function App() {
     }
   };
 
-  const displayOrders: Order[] = Array.from(
+  // --- NATIVE MOBILE "BACK BUTTON" INTERCEPTORS ---
+  useEffect(() => {
+    if (isAdminOpen) {
+      window.history.pushState({ modal: 'admin' }, '');
+      const handlePopState = () => setIsAdminOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'admin') window.history.back();
+      };
+    }
+  }, [isAdminOpen]);
+
+  useEffect(() => {
+    if (isCheckoutOpen) {
+      window.history.pushState({ modal: 'checkout' }, '');
+      const handlePopState = () => setIsCheckoutOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'checkout') window.history.back();
+      };
+    }
+  }, [isCheckoutOpen]);
+
+  useEffect(() => {
+    if (isProfileOpen) {
+      window.history.pushState({ modal: 'profile' }, '');
+      const handlePopState = () => setIsProfileOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'profile') window.history.back();
+      };
+    }
+  }, [isProfileOpen]);
+
+  useEffect(() => {
+    if (isAuthOpen) {
+      window.history.pushState({ modal: 'auth' }, '');
+      const handlePopState = () => setIsAuthOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'auth') window.history.back();
+      };
+    }
+  }, [isAuthOpen]);
+
+  const displayOrders = useMemo(() => Array.from(
     new Map([...localUserOrders, ...userOrders].map((o) => [o.id, o])).values()
-  ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  ).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [localUserOrders, userOrders]);
 
   return (
     <div className="relative min-h-screen bg-[#FBFAF7] selection:bg-[#1D1C1A] selection:text-white">
+      <AnimatePresence>
+        {showSplash && (
+          <motion.div
+            key="global-splash"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 z-[200] bg-[#FBFAF7] flex flex-col items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col items-center"
+            >
+              <div className="flex items-baseline mb-8 relative pb-4">
+                <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
+                  SIMPLYSIP
+                </div>
+                <span className="ml-2 sm:ml-3 text-2xl sm:text-3xl md:text-4xl text-[#1D1C1A] font-script font-semibold tracking-[0.08em] uppercase">
+                  ELIXIRS
+                </span>
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 1.2, ease: "easeInOut", delay: 0.2 }}
+                  className="absolute bottom-0 left-0 h-px bg-black/10"
+                />
+              </div>
+              <div className="text-[9px] uppercase tracking-[0.4em] text-gray-400 mb-8 font-semibold">
+                Curating your experience
+              </div>
+              <div className="flex gap-2">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-[#1D1C1A]"
+                    animate={{ scale: [0.5, 1, 0.5], opacity: [0.3, 1, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.2, ease: "easeInOut" }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {isAdminOpen ? (
           <motion.div
@@ -503,7 +611,10 @@ export default function App() {
               onAdminOpen={() => setIsAdminOpen(true)}
               onProfileToggle={() => setIsProfileOpen(true)}
             />
-            <Hero onSubscribe={() => setIsPlanOpen(true)} />
+            <Hero onSubscribe={() => {
+              const el = document.getElementById('subscriptions');
+              if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
+            }} />
             <Menu 
               cart={cart}
               menuItems={menuItems}
@@ -525,6 +636,7 @@ export default function App() {
               onPlanChange={setSelectedPlan}
               onCheckout={handleOpenCheckout}
               cartCount={cartCount as number}
+              cartTotal={combinedTotal}
             />
 
             {isPlanOpen && (

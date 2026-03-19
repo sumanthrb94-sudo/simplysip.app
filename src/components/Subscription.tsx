@@ -3,40 +3,12 @@ import { motion } from 'motion/react';
 
 interface SubscriptionProps {
   onSubscribe: (plan: "weekly" | "monthly") => void;
-  selectedPlan: "weekly" | "monthly";
-  onPlanChange: (plan: "weekly" | "monthly") => void;
 }
 
-export default function Subscription({ onSubscribe, selectedPlan, onPlanChange }: SubscriptionProps) {
-  const plan = selectedPlan;
-
-  const planData = {
-    weekly: {
-      label: "Weekly Plan",
-      title: "Weekly Detox Plan",
-      count: "7 cold-pressed juices (200 ml each)",
-      mrp: 999,
-      price: 799,
-      cadence: "/ week",
-      perBottle: "",
-      cta: "Start Weekly"
-    },
-    monthly: {
-      label: "Monthly Plan",
-      title: "Monthly Cleanse Plan",
-      count: "30 cold-pressed juices (200 ml each)",
-      mrp: 3599,
-      price: 2599,
-      cadence: "/ month",
-      perBottle: "",
-      cta: "Start Monthly"
-    }
-  } as const;
-
-  const activePlan = planData[plan];
+export default function Subscription({ onSubscribe }: SubscriptionProps) {
 
   return (
-    <section className="relative py-24 sm:py-32 px-4 sm:px-6 overflow-hidden">
+    <section id="subscriptions" className="relative py-24 sm:py-32 px-4 sm:px-6 overflow-hidden scroll-mt-10">
       <div className="absolute inset-0 z-0">
         <img 
           src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?q=80&w=2200&auto=format&fit=crop" 
@@ -61,45 +33,47 @@ export default function Subscription({ onSubscribe, selectedPlan, onPlanChange }
             <p className="text-sm sm:text-base text-[#6F6A63] font-light mt-4">Fresh delivery. Every day. No commitment.</p>
           </div>
 
-          <div className="flex justify-center mb-10">
-            <div className="inline-flex rounded-full border border-black/10 bg-white/80 p-1">
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Weekly Card */}
+            <div className="p-8 sm:p-10 rounded-[2.5rem] border border-black/5 bg-white shadow-[0_30px_70px_-55px_rgba(0,0,0,0.35)] text-center flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300">
+              <div>
+                <p className="text-[11px] tracking-[0.4em] uppercase text-[#6F6A63] mb-3 font-bold">Weekly Plan</p>
+                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1D1C1A] font-display mb-2">Weekly Detox</h3>
+                <p className="text-sm text-[#6F6A63] font-medium mb-8">7 cold-pressed juices (200 ml each)</p>
+                <div className="flex items-baseline justify-center gap-3 mb-8">
+                  <span className="text-sm text-[#A7A29C] line-through font-medium">{"\u20B9"}999</span>
+                  <span className="text-4xl sm:text-5xl font-bold text-[#1D1C1A]">{"\u20B9"}799</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-[#6F6A63] font-bold">/ week</span>
+                </div>
+              </div>
               <button
-                onClick={() => onPlanChange("weekly")}
-                className={`px-6 py-2 rounded-full text-[11px] font-semibold tracking-[0.2em] uppercase transition-colors ${
-                  plan === "weekly" ? "bg-[#1D1C1A] text-white" : "text-[#6F6A63]"
-                }`}
+                onClick={() => onSubscribe('weekly')}
+                className="w-full px-8 py-4 bg-[#1D1C1A] text-white rounded-2xl font-bold tracking-[0.2em] uppercase text-[11px] shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] hover:bg-black transition-all"
               >
-                Weekly
-              </button>
-              <button
-                onClick={() => onPlanChange("monthly")}
-                className={`px-6 py-2 rounded-full text-[11px] font-semibold tracking-[0.2em] uppercase transition-colors ${
-                  plan === "monthly" ? "bg-[#1D1C1A] text-white" : "text-[#6F6A63]"
-                }`}
-              >
-                Monthly
+                Start Weekly Plan
               </button>
             </div>
-          </div>
 
-          <div className="max-w-2xl mx-auto">
-            <div className="p-6 sm:p-8 rounded-[2rem] border border-black/5 bg-white shadow-[0_30px_70px_-55px_rgba(0,0,0,0.35)] text-center">
-              <p className="text-[11px] tracking-[0.4em] uppercase text-[#6F6A63] mb-3">{activePlan.label}</p>
-              <h3 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1D1C1A] font-display mb-2">{activePlan.title}</h3>
-              <p className="text-sm text-[#6F6A63] font-light mb-6">{activePlan.count}</p>
-              <div className="flex items-baseline justify-center gap-3 mb-4">
-                <span className="text-sm text-[#A7A29C] line-through font-medium">{"\u20B9"}{activePlan.mrp}</span>
-                <span className="text-3xl sm:text-4xl font-semibold text-[#1D1C1A]">{"\u20B9"}{activePlan.price}</span>
-                <span className="text-[11px] uppercase tracking-[0.2em] text-[#6F6A63]">{activePlan.cadence}</span>
+            {/* Monthly Card */}
+            <div className="p-8 sm:p-10 rounded-[2.5rem] border border-white/10 bg-[#1D1C1A] text-white shadow-[0_30px_70px_-30px_rgba(0,0,0,0.5)] text-center relative overflow-hidden flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300">
+              <div className="absolute top-0 right-0 bg-yellow-400 text-black text-[9px] font-bold uppercase tracking-widest px-4 py-2 rounded-bl-2xl">
+                Best Value
               </div>
-              {activePlan.perBottle && (
-                <p className="text-xs text-[#6F6A63]">{activePlan.perBottle}</p>
-              )}
+              <div>
+                <p className="text-[11px] tracking-[0.4em] uppercase text-white/50 mb-3 font-bold">Monthly Plan</p>
+                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-display mb-2">Monthly Cleanse</h3>
+                <p className="text-sm text-white/70 font-medium mb-8">30 cold-pressed juices (200 ml each)</p>
+                <div className="flex items-baseline justify-center gap-3 mb-8">
+                  <span className="text-sm text-white/40 line-through font-medium">{"\u20B9"}3599</span>
+                  <span className="text-4xl sm:text-5xl font-bold text-white">{"\u20B9"}2599</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-white/50 font-bold">/ month</span>
+                </div>
+              </div>
               <button
-                onClick={() => onSubscribe(plan)}
-                className="mt-8 w-full px-8 py-4 bg-[#1D1C1A] text-white rounded-full font-semibold tracking-[0.2em] uppercase text-[11px] hover:bg-black transition-colors"
+                onClick={() => onSubscribe('monthly')}
+                className="w-full px-8 py-4 bg-white text-[#1D1C1A] rounded-2xl font-bold tracking-[0.2em] uppercase text-[11px] shadow-[0_10px_20px_-10px_rgba(255,255,255,0.2)] hover:bg-gray-100 transition-all"
               >
-                Subscribe Now
+                Start Monthly Plan
               </button>
             </div>
           </div>

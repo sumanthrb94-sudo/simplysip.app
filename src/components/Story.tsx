@@ -11,7 +11,7 @@ const features = [
 
 export default function Story() {
   return (
-    <section className="py-24 sm:py-28 px-4 sm:px-6 bg-white border-t border-black/5">
+    <section id="story" className="py-24 sm:py-28 px-4 sm:px-6 bg-white border-t border-black/5 scroll-mt-20">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12 sm:mb-16">
           <p className="text-[11px] tracking-[0.4em] uppercase text-[#6F6A63] mb-4">Why Simply Sip</p>

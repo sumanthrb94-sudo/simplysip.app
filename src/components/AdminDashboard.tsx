@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote } from 'lucide-react';
+import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
@@ -542,6 +542,19 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     });
   }, [selectedOrder]);
 
+  // Intercept hardware back button for the order modal
+  useEffect(() => {
+    if (selectedOrder) {
+      window.history.pushState({ modal: 'order' }, '');
+      const handlePopState = () => setSelectedOrder(null);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'order') window.history.back();
+      };
+    }
+  }, [!!selectedOrder]);
+
   const saveOrderUpdates = async () => {
     if (!selectedOrder) return;
     setIsSavingOrder(true);
@@ -786,102 +799,114 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-          <div className="bg-white rounded-3xl border border-black/5 p-6 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-2">Total Users</div>
-            <div className="text-3xl font-semibold text-[#1D1D1F]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-12">
+          <div className="bg-white rounded-[2rem] border border-black/5 p-6 sm:p-8 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] relative overflow-hidden group hover:border-black/10 transition-colors">
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400 mb-3 flex items-center gap-2">
+              <Users size={14} className="text-blue-500" /> Total Users
+            </div>
+            <div className="text-4xl font-display font-bold text-[#1D1D1F]">
               {statsLoading ? "..." : totalUsers}
             </div>
           </div>
-          <div className="bg-white rounded-3xl border border-black/5 p-6 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-2">Upcoming Orders</div>
-            <div className="text-3xl font-semibold text-[#1D1D1F]">
+          <div className="bg-white rounded-[2rem] border border-black/5 p-6 sm:p-8 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] relative overflow-hidden group hover:border-black/10 transition-colors">
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400 mb-3 flex items-center gap-2">
+              <Package size={14} className="text-orange-500" /> Upcoming Orders
+            </div>
+            <div className="text-4xl font-display font-bold text-[#1D1D1F]">
               {statsLoading ? "..." : upcomingOrders}
             </div>
           </div>
-          <div className="bg-white rounded-3xl border border-black/5 p-6 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-2">Subscribers</div>
-            <div className="text-3xl font-semibold text-[#1D1D1F]">
+          <div className="bg-white rounded-[2rem] border border-black/5 p-6 sm:p-8 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] relative overflow-hidden group hover:border-black/10 transition-colors">
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-400 mb-3 flex items-center gap-2">
+              <Star size={14} className="text-yellow-500" /> Subscribers
+            </div>
+            <div className="text-4xl font-display font-bold text-[#1D1D1F]">
               {statsLoading ? "..." : subscribers}
             </div>
           </div>
         </div>
 
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          {(["all", "pending", "paid", "delivered", "cancelled"] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setOrderFilter(status)}
-              className={`px-4 py-2 rounded-full text-[10px] font-semibold tracking-[0.2em] uppercase border ${
-                orderFilter === status ? "bg-[#1D1C1A] text-white border-[#1D1C1A]" : "border-black/10 text-[#1D1C1A]"
-              }`}
-            >
-              {status}
-            </button>
-          ))}
+        <div className="mb-6">
+          <div className="flex flex-wrap bg-white p-1.5 rounded-3xl border border-black/5 shadow-sm gap-1">
+            {(["all", "pending", "paid", "delivered", "cancelled"] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setOrderFilter(status)}
+                className={`flex-1 min-w-[80px] py-3 rounded-2xl text-[10px] font-bold tracking-widest uppercase transition-all ${
+                  orderFilter === status ? "bg-[#1D1C1A] text-white shadow-md" : "text-gray-400 hover:text-[#1D1D1F] hover:bg-gray-50"
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mb-14">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-bold tracking-tight text-[#1D1D1F]">Order Calendar</h2>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-gray-500">
-              Select Date
-            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-[#1D1D1F] font-display flex items-center gap-3">
+              <Calendar size={24} className="text-gray-400" /> Daily Revenue
+            </h2>
           </div>
 
-          <div className="bg-white border border-black/5 rounded-3xl p-6 shadow-sm">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white border border-black/5 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)]">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Day</div>
-                <select
-                  value={selectedDay}
-                  onChange={(e) => setSelectedDay(Number(e.target.value))}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                >
-                  {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Day</label>
+                <div className="relative">
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(Number(e.target.value))}
+                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold appearance-none"
+                  >
+                    {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((day) => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDown size={14} /></span>
+                </div>
               </div>
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Month</div>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                >
-                  {[
-                    "January","February","March","April","May","June","July","August","September","October","November","December"
-                  ].map((label, index) => (
-                    <option key={label} value={index}>{label}</option>
-                  ))}
-                </select>
+                <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Month</label>
+                <div className="relative">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold appearance-none"
+                  >
+                    {["January","February","March","April","May","June","July","August","September","October","November","December"].map((label, index) => (
+                      <option key={label} value={index}>{label}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDown size={14} /></span>
+                </div>
               </div>
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Year</div>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                >
-                  {yearOptions.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
+                <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Year</label>
+                <div className="relative">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold appearance-none"
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDown size={14} /></span>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-black/5 p-4">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-2">Orders</div>
-                <div className="text-2xl font-semibold text-[#1D1D1F]">{selectedStats.count}</div>
+            <div className="flex flex-col sm:flex-row items-stretch gap-4">
+              <div className="flex-1 bg-[#F9F8F6] rounded-3xl p-6 border border-black/5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2 flex items-center gap-1.5"><Package size={12}/> Orders Fulfilled</div>
+                <div className="text-3xl font-display font-bold text-[#1D1D1F]">{selectedStats.count}</div>
               </div>
-              <div className="rounded-2xl border border-black/5 p-4">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-2">Revenue</div>
-                <div className="text-2xl font-semibold text-[#1D1D1F]">
-                  {rupee}{Math.round(selectedStats.revenue)}
+              <div className="flex-1 bg-green-50 rounded-3xl p-6 border border-green-100">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-green-700 mb-2 flex items-center gap-1.5"><TrendingUp size={12}/> Net Revenue</div>
+                <div className="text-3xl font-display font-bold text-green-700">
+                  {rupee}{Math.round(selectedStats.revenue).toLocaleString('en-IN')}
                 </div>
               </div>
             </div>
@@ -890,7 +915,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
         <div className="mb-14">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <h2 className="text-2xl font-bold tracking-tight text-[#1D1D1F]">Live Orders</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-[#1D1D1F] font-display">Live Orders</h2>
             <button
               onClick={bulkAcceptPendingOrders}
               disabled={pendingOrdersCount === 0}
@@ -914,7 +939,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   return (
                   <div
                     key={order.id}
-                    className="bg-white p-4 sm:p-5 rounded-2xl border border-black/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-left hover:border-black/20 transition-colors"
+                    className="bg-white p-5 rounded-[2rem] border border-black/5 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-left hover:border-black/15 transition-all hover:-translate-y-0.5"
                   >
                     <button
                       type="button"
@@ -922,12 +947,21 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                       className="flex-1 text-left"
                     >
                       <div>
-                        <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-1 flex items-center gap-2">
-                          <span>{(order.orderStatus || order.status || "pending")} {bullet} {order.paymentStatus || "unpaid"}</span>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest shadow-sm ${
+                            (order.orderStatus || order.status || 'pending') === 'delivered' ? 'bg-green-100 text-green-800' :
+                            (order.orderStatus || order.status || 'pending') === 'cancelled' ? 'bg-red-100 text-red-800' :
+                            (order.orderStatus || order.status || 'pending') === 'out-for-delivery' ? 'bg-blue-100 text-blue-800' :
+                            'bg-orange-100 text-orange-800'
+                          }`}>
+                            {(order.orderStatus || order.status || 'pending').replace(/-/g, ' ')}
+                          </span>
+                          <span className="text-[10px] font-bold text-gray-300">•</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${order.paymentStatus === 'paid' ? 'text-green-600' : 'text-orange-500'}`}>{order.paymentStatus || 'unpaid'}</span>
                           {(() => {
                             const source = getPaymentSource(order.paymentId);
                             return (
-                              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold shadow-sm border ${
                                 source === 'whatsapp' ? 'bg-green-50 text-green-600' : 
                                 source === 'cod' ? 'bg-orange-50 text-orange-600' : 
                                 'bg-blue-50 text-blue-600'
@@ -938,21 +972,21 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             );
                           })()}
                         </div>
-                        <div className="text-sm font-semibold text-[#1D1D1F]">
+                        <div className="text-base font-bold text-[#1D1D1F] mb-0.5">
                           {order.address?.name || "Customer"} {bullet} {rupee}{order.total ?? "-"}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 font-medium">
                           {order.address?.area || "Area"} {bullet} {order.address?.phone || "Phone"}
                         </div>
                       </div>
                       <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">
-                        {order.id}
+                        ID: {order.id.slice(-8)}
                       </div>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteOrder(order.id)}
-                      className="w-full sm:w-auto px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-red-600 border border-red-200 rounded-full hover:border-red-300"
+                      className="w-full sm:w-auto px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-red-500 bg-red-50 rounded-full hover:bg-red-100 transition-colors"
                     >
                       Delete
                     </button>
@@ -1151,46 +1185,51 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
           <div className="lg:col-span-1">
-            <div className="bg-white p-6 sm:p-8 rounded-[2rem] shadow-sm border border-black/5 lg:sticky lg:top-6">
-              <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F]">{editingMenuId ? "Edit Juice" : "Add New Juice"}</h2>
+            <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] border border-black/5 lg:sticky lg:top-6">
+              <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F] font-display">{editingMenuId ? "Edit Juice" : "Add New Juice"}</h2>
               <form onSubmit={handleSaveMenu} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as "Signature Blends" | "Single Fruit Series")}
-                    className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent"
-                  >
-                    <option value="Signature Blends">Signature Blends (Blends)</option>
-                    <option value="Single Fruit Series">Single Fruit Series (Pure)</option>
-                  </select>
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Category</label>
+                  <div className="relative">
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as "Signature Blends" | "Single Fruit Series")}
+                      className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold text-[#1A1A1A] appearance-none"
+                    >
+                      <option value="Signature Blends">Signature Blends (Blends)</option>
+                      <option value="Single Fruit Series">Single Fruit Series (Pure)</option>
+                    </select>
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDown size={14} /></span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Juice Name</label>
-                  <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Citrus Blast" className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent" />
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Juice Name</label>
+                  <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Citrus Blast" className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Ingredients</label>
-                  <textarea required value={desc} onChange={e => setDesc(e.target.value)} placeholder="Orange, Lemon, Ginger" className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent min-h-[80px] resize-none" />
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Ingredients</label>
+                  <textarea required value={desc} onChange={e => setDesc(e.target.value)} placeholder="Orange, Lemon, Ginger" className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 min-h-[80px] resize-none" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">MRP ({rupee})</label>
-                  <input required type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">MRP ({rupee})</label>
+                    <input required type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold text-[#1A1A1A]" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Offer Price</label>
+                    <input required type="number" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-bold text-[#1A1A1A]" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Offer Price ({rupee})</label>
-                  <input required type="number" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold tracking-wide text-gray-500 mb-2 uppercase">Image URL</label>
-                  <input required value={image} onChange={e => setImage(e.target.value)} placeholder="https://..." className="w-full border-b border-black/10 py-3 text-sm focus:outline-none focus:border-black transition-colors bg-transparent" />
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Image URL</label>
+                  <input required value={image} onChange={e => setImage(e.target.value)} placeholder="https://..." className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400" />
                 </div>
                 <div className="flex gap-3 mt-4">
-                  <button type="submit" className="flex-1 py-4 bg-[#1D1D1F] text-white rounded-full font-medium tracking-wide hover:bg-black transition-colors duration-300 text-sm">
+                  <button type="submit" className="flex-1 py-4 bg-[#1D1D1F] text-white rounded-2xl font-bold tracking-widest uppercase hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] text-[10px]">
                     {editingMenuId ? "Update Item" : "Add Item"}
                   </button>
                   {editingMenuId && (
-                    <button type="button" onClick={resetMenuForm} className="flex-1 py-4 bg-gray-200 text-[#1D1D1F] rounded-full font-medium tracking-wide hover:bg-gray-300 transition-colors duration-300 text-sm">
+                    <button type="button" onClick={resetMenuForm} className="flex-1 py-4 bg-gray-100 text-[#1D1D1F] rounded-2xl font-bold tracking-widest uppercase hover:bg-gray-200 transition-colors text-[10px]">
                       Cancel
                     </button>
                   )}
@@ -1200,7 +1239,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
           </div>
 
           <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F]">Current Menu</h2>
+            <h2 className="text-2xl font-bold tracking-tight mb-8 text-[#1D1D1F] font-display">Current Menu</h2>
             {loading ? (
               <p className="text-gray-500 font-medium">Loading menu...</p>
             ) : menuError ? (
@@ -1222,10 +1261,10 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   key={item.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-3xl shadow-sm border border-black/5 flex items-center gap-8 group"
+                  className="bg-white p-5 sm:p-6 rounded-[2rem] shadow-[0_10px_40px_-20px_rgba(0,0,0,0.05)] border border-black/5 flex items-center gap-6 sm:gap-8 group hover:border-black/15 transition-all"
                 >
-                  <div className="w-24 h-24 bg-[#F5F5F7] rounded-2xl overflow-hidden shrink-0">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#F9F8F6] rounded-2xl overflow-hidden shrink-0">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" referrerPolicy="no-referrer" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
@@ -1235,10 +1274,10 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                         <span className="text-xs text-gray-400 line-through">{rupee}{item.mrp}</span>
                       )}
                     </div>
-                    <h3 className="text-xl font-bold tracking-tight text-[#1D1D1F] mb-1">{item.name}</h3>
+                    <h3 className="text-xl font-bold tracking-tight text-[#1D1D1F] mb-1 font-display">{item.name}</h3>
                     <p className="text-sm text-gray-500 font-light truncate max-w-md">{item.desc}</p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                     <button
                       onClick={() => handleEditClick(item)}
                       className="p-3 sm:p-4 text-gray-400 hover:text-blue-500 transition-colors bg-gray-50 hover:bg-blue-50 rounded-full"
