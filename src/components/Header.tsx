@@ -6,11 +6,12 @@ interface HeaderProps {
   onAuth: () => void;
   onLogout: () => void;
   isAdmin: boolean;
+  adminPendingCount?: number;
   onAdminOpen: () => void;
   onProfileToggle: () => void;
 }
 
-export default function Header({ user, onAuth, onLogout, isAdmin, onAdminOpen, onProfileToggle }: HeaderProps) {
+export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCount, onAdminOpen, onProfileToggle }: HeaderProps) {
   return (
     <motion.header 
       initial={{ opacity: 0, y: -20 }}
@@ -36,9 +37,17 @@ export default function Header({ user, onAuth, onLogout, isAdmin, onAdminOpen, o
               <button
                 onClick={onAdminOpen}
                 aria-label="Open admin dashboard"
-                className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-full border border-black/10 text-[#1D1C1A] hover:border-black/20 hover:bg-black/5 transition-colors"
+                className="relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-full border border-black/10 text-[#1D1C1A] hover:border-black/20 hover:bg-black/5 transition-colors"
               >
                 <LayoutDashboard size={16} />
+                {!!adminPendingCount && adminPendingCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 items-center justify-center text-[9px] font-bold text-white">
+                      {adminPendingCount > 9 ? '9+' : adminPendingCount}
+                    </span>
+                  </span>
+                )}
               </button>
             )}
             <button

@@ -34,6 +34,7 @@ export default function App() {
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [localUserOrders, setLocalUserOrders] = useState<Order[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminPendingCount, setAdminPendingCount] = useState(0);
   const [isCartHydrated, setIsCartHydrated] = useState(false);
   const cartCount = Object.values(cart).reduce((sum: number, qty: number) => sum + qty, 0);
   const subscriptionTotal =
@@ -128,7 +129,13 @@ export default function App() {
         // Background check for Firestore admin badge
         getDoc(doc(db, "admins", currentUser.uid))
           .then((snap) => {
-            if (snap.exists()) setIsAdmin(true);
+            if (snap.exists()) {
+              setIsAdmin(true);
+            } else if (!isEmailAdmin) {
+              // Revoke invalid local admin status to prevent crash loops
+              setIsAdmin(false);
+              window.localStorage.removeItem('simplysip_local_admin');
+            }
           })
           .catch((err: any) => {
             if (err.code === 'unavailable' || err.message?.includes('offline')) {
@@ -300,6 +307,20 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setAdminPendingCount(0);
+      return;
+    }
+    const pendingQuery = query(collection(db, 'orders'), where('orderStatus', '==', 'pending'));
+    const unsubscribe = onSnapshot(pendingQuery, (snapshot) => {
+      setAdminPendingCount(snapshot.docs.length);
+    }, (err) => {
+      console.warn("Failed to load pending orders for badge:", err);
+    });
+    return () => unsubscribe();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user || !isCartHydrated) return;
@@ -478,6 +499,7 @@ export default function App() {
               }}
               onLogout={handleLogout}
               isAdmin={isAdmin}
+              adminPendingCount={adminPendingCount}
               onAdminOpen={() => setIsAdminOpen(true)}
               onProfileToggle={() => setIsProfileOpen(true)}
             />

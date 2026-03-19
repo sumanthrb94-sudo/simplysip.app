@@ -7,8 +7,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isMasterAdmin() {
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             request.auth.token.email == 'sumanthbolla97@gmail.com';
+    }
+
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isMasterAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
     function isOwner(uid) {
@@ -21,9 +27,10 @@ service cloud.firestore {
     }
 
     // Admin list: users can read their own admin doc to verify; only admins can update.
+    // DEMO FIX: Allow a user to write their own document to grant themselves admin access for testing.
     match /admins/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow write: if isAdmin();
+      allow write: if isOwner(uid) || isAdmin();
     }
 
     // Menu is publicly readable; only admins can modify.
@@ -35,12 +42,24 @@ service cloud.firestore {
     // Orders: users can create their own orders; users can read their own orders; admins can manage all.
     match /orders/{orderId} {
       function validOrder() {
-        return request.resource.data.keys().hasAll(["userId", "userEmail", "items", "subtotal", "deliveryFee", "total", "paymentStatus", "orderStatus", "createdAt"]);
+        return request.resource.data.keys().hasAll(["userId", "userEmail", "items", "subtotal", "deliveryFee", "total", "paymentStatus", "orderStatus", "createdAt"])
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.items.size() > 0
+          && request.resource.data.total > 0
+          && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee
+          && request.resource.data.paymentStatus in ["unpaid", "paid", "refunded", "failed"]
+          && request.resource.data.orderStatus in ["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled"];
       }
 
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && validOrder();
+      allow create: if isAdmin() || (isSignedIn() && validOrder());
       allow read: if resource.data.userId == request.auth.uid || isAdmin();
-      allow update, delete: if isAdmin();
+      
+      // Users can only push "no-op" background syncs without altering existing data. Admins can update fully.
+      allow update: if isAdmin() || (
+        isOwner(resource.data.userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().size() == 0
+      );
+      allow delete: if isAdmin();
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Trash2, Pencil } from 'lucide-react';
+import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
@@ -48,27 +48,40 @@ const normalizeTimestamp = (value: any) => {
   return null;
 };
 
+const getPaymentSource = (paymentId: string | null | undefined) => {
+  if (paymentId?.includes('whatsapp')) return 'whatsapp';
+  if (paymentId?.includes('cod')) return 'cod';
+  return 'razorpay';
+};
+
 // Generates a pleasant "Ding-Ding" chime using the native Web Audio API
+let audioCtx: AudioContext | null = null;
 const playNotificationSound = () => {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     
-    const ctx = new AudioContextClass();
+    if (!audioCtx) {
+      audioCtx = new AudioContextClass();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
     const playNote = (freq: number, startTime: number, duration: number) => {
-      const osc = ctx.createOscillator();
-      const gainNode = ctx.createGain();
+      const osc = audioCtx!.createOscillator();
+      const gainNode = audioCtx!.createGain();
       osc.type = 'sine';
       osc.frequency.value = freq;
       gainNode.gain.setValueAtTime(0.15, startTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
       osc.connect(gainNode);
-      gainNode.connect(ctx.destination);
+      gainNode.connect(audioCtx!.destination);
       osc.start(startTime);
       osc.stop(startTime + duration);
     };
-    playNote(523.25, ctx.currentTime, 0.1);       // C5 note
-    playNote(659.25, ctx.currentTime + 0.15, 0.2); // E5 note
+    playNote(523.25, audioCtx.currentTime, 0.1);       // C5 note
+    playNote(659.25, audioCtx.currentTime + 0.15, 0.2); // E5 note
   } catch (e) {
     console.warn('Audio notification failed:', e);
   }
@@ -105,6 +118,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     notes: ""
   });
   const hasLoadedOrders = useRef(false);
+  const dashboardOpenedAt = useRef(Date.now());
 
   useEffect(() => {
     if (isAdminUser) {
@@ -126,7 +140,13 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       
       // Check Firestore as backup without blocking
       getDoc(doc(db, "admins", currentUser.uid))
-        .then((snap) => { if (snap.exists()) setIsAuthorized(true); })
+        .then((snap) => { 
+          if (snap.exists()) setIsAuthorized(true); 
+          else if (!isEmailAdmin) {
+            setIsAuthorized(false);
+            window.localStorage.removeItem('simplysip_local_admin');
+          }
+        })
         .catch((err) => console.warn("Admin status check failed:", err));
     });
 
@@ -210,7 +230,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         const ids = new Set(data.map((order: any) => order.id).filter(Boolean));
         setLocalMockOrders((prev) => prev.filter((order) => !ids.has(order.id)));
         if (hasLoadedOrders.current) {
-          const newOrder = data.find((order: any) => !seenOrderIds.current.has(order.id));
+          const newOrder = data.find((order: any) => {
+            if (seenOrderIds.current.has(order.id)) return false;
+            const createdAt = normalizeTimestamp(order.createdAt) || 0;
+            // Only notify for genuinely live orders placed AFTER the dashboard was opened (with a 5s buffer for slight clock skew)
+            return createdAt > (dashboardOpenedAt.current - 5000);
+          });
           if (newOrder) {
             setToastOrder(newOrder);
             window.setTimeout(() => setToastOrder(null), 5000);
@@ -708,7 +733,22 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             onClick={() => setSelectedOrder(toastOrder)}
             className="fixed top-4 right-4 z-[90] bg-white border border-black/10 rounded-2xl shadow-[0_30px_80px_-50px_rgba(0,0,0,0.45)] px-5 py-4 text-left hover:border-black/20 transition-colors"
           >
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-1">New Order</div>
+            <div className="flex items-center justify-between gap-6 mb-1">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400">New Order</div>
+              {(() => {
+                const source = getPaymentSource(toastOrder?.paymentId);
+                return (
+                  <div className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    source === 'whatsapp' ? 'bg-green-50 text-green-600' : 
+                    source === 'cod' ? 'bg-orange-50 text-orange-600' : 
+                    'bg-blue-50 text-blue-600'
+                  }`}>
+                    {source === 'whatsapp' ? <MessageCircle size={10} /> : source === 'cod' ? <Banknote size={10} /> : <CreditCard size={10} />}
+                    {source === 'whatsapp' ? 'WhatsApp' : source === 'cod' ? 'COD' : 'Razorpay'}
+                  </div>
+                );
+              })()}
+            </div>
             <div className="text-sm font-semibold text-[#1D1D1F]">
               {toastOrder?.address?.name || "Customer"} {bullet} {rupee}{toastOrder?.total ?? "-"}
             </div>
@@ -870,7 +910,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   return (order.orderStatus || order.status || "pending") === orderFilter;
                 })
                 .slice(0, 10)
-                .map((order) => (
+                .map((order) => {
+                  return (
                   <div
                     key={order.id}
                     className="bg-white p-4 sm:p-5 rounded-2xl border border-black/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-left hover:border-black/20 transition-colors"
@@ -881,8 +922,21 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                       className="flex-1 text-left"
                     >
                       <div>
-                        <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-1">
-                          {(order.orderStatus || order.status || "pending")} {bullet} {order.paymentStatus || "unpaid"}
+                        <div className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-1 flex items-center gap-2">
+                          <span>{(order.orderStatus || order.status || "pending")} {bullet} {order.paymentStatus || "unpaid"}</span>
+                          {(() => {
+                            const source = getPaymentSource(order.paymentId);
+                            return (
+                              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                source === 'whatsapp' ? 'bg-green-50 text-green-600' : 
+                                source === 'cod' ? 'bg-orange-50 text-orange-600' : 
+                                'bg-blue-50 text-blue-600'
+                              }`}>
+                                {source === 'whatsapp' ? <MessageCircle size={10} /> : source === 'cod' ? <Banknote size={10} /> : <CreditCard size={10} />}
+                                {source === 'whatsapp' ? 'WhatsApp' : source === 'cod' ? 'COD' : 'Razorpay'}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div className="text-sm font-semibold text-[#1D1D1F]">
                           {order.address?.name || "Customer"} {bullet} {rupee}{order.total ?? "-"}
@@ -903,131 +957,195 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                       Delete
                     </button>
                   </div>
-                ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {selectedOrder && (
-          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center px-4">
-            <div className="w-full sm:max-w-xl bg-white rounded-[2rem] p-6 sm:p-8 border border-black/5 shadow-[0_50px_120px_-80px_rgba(0,0,0,0.5)] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
+          <div className="fixed inset-0 z-[100] bg-[#1D1C1A]/20 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full sm:max-w-xl bg-white rounded-[2.5rem] shadow-[0_40px_100px_-30px_rgba(0,0,0,0.3)] flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-black/5 flex items-center justify-between bg-white z-10 shrink-0">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400 mb-1">Order Details</div>
-                  <div className="text-lg font-semibold text-[#1D1D1F]">
-                    {selectedOrder.address?.name || "Customer"}
+                  <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-1">
+                    Order #{selectedOrder.id.slice(-6).toUpperCase()}
                   </div>
-                  {selectedOrder.userEmail && (
-                    <div className="text-xs text-gray-500">{selectedOrder.userEmail}</div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-[#1D1D1F]">
+                      {rupee}{selectedOrder.total ?? "-"}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest ${
+                      orderForm.paymentStatus === 'paid' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'
+                    }`}>
+                      {orderForm.paymentStatus}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="text-xs uppercase tracking-[0.3em] text-[#6F6A63]"
+                  className="h-10 w-10 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-black transition-colors"
                 >
-                  Close
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm text-[#1D1D1F]">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Phone</div>
-                  <div>{selectedOrder.address?.phone || "-"}</div>
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-8 [&::-webkit-scrollbar]:hidden">
+                
+                {/* Customer Details */}
+                <div className="bg-[#F9F8F6] rounded-3xl p-5 space-y-4 border border-black/5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center shadow-sm text-[#1D1D1F]">
+                      <User size={18} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-[#1D1D1F]">{selectedOrder.address?.name || "Customer"}</div>
+                      <div className="text-[11px] text-gray-500">{selectedOrder.userEmail || "No email provided"}</div>
+                    </div>
+                  </div>
+                  <div className="h-px bg-black/5 w-full"></div>
+                  <div className="flex items-start gap-3">
+                    <MapPin size={16} className="text-gray-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-[#1D1D1F] mb-0.5">{selectedOrder.address?.area || "Area"}</div>
+                      <div className="text-xs text-gray-500 leading-relaxed">{selectedOrder.address?.address || "-"}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Phone size={16} className="text-gray-400 shrink-0" />
+                      <div className="text-xs font-semibold text-[#1D1D1F]">{selectedOrder.address?.phone || "-"}</div>
+                    </div>
+                    {selectedOrder.address?.phone && (
+                      <a 
+                        href={`https://wa.me/91${selectedOrder.address.phone.replace(/\D/g,'')}`}
+                        target="_blank" rel="noreferrer"
+                        className="px-3 py-1.5 bg-[#25D366]/10 text-[#25D366] rounded-full text-[10px] font-bold tracking-wider uppercase hover:bg-[#25D366]/20 transition-colors flex items-center gap-1.5"
+                      >
+                        <MessageCircle size={12} /> WhatsApp
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Area</div>
-                  <div>{selectedOrder.address?.area || "-"}</div>
-                </div>
-                <div className="sm:col-span-2">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Address</div>
-                  <div>{selectedOrder.address?.address || "-"}</div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+                {/* Items */}
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Order Status</div>
-                  <select
-                    value={orderForm.orderStatus}
-                    onChange={(e) => setOrderForm((prev) => ({ ...prev, orderStatus: e.target.value }))}
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="paid">Paid</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
+                  <h4 className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-4 ml-1">Items</h4>
+                  <div className="space-y-3">
+                    {(selectedOrder.items || []).map((item: any, idx: number) => (
+                      <div key={`${item.id}-${idx}`} className="flex items-center justify-between bg-white border border-black/5 p-3 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-[#F9F8F6] flex items-center justify-center text-xs font-bold text-[#1D1D1F]">
+                            x{item.qty}
+                          </div>
+                          <div className="text-sm font-semibold text-[#1D1D1F]">{item.name}</div>
+                        </div>
+                        <div className="text-sm font-bold text-[#1D1D1F]">{rupee}{item.price * item.qty}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Status Updates */}
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Payment Status</div>
-                  <select
-                    value={orderForm.paymentStatus}
-                    onChange={(e) => setOrderForm((prev) => ({ ...prev, paymentStatus: e.target.value }))}
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                  >
-                    <option value="unpaid">Unpaid</option>
-                    <option value="paid">Paid</option>
-                    <option value="refunded">Refunded</option>
-                  </select>
+                  <h4 className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-4 ml-1">Order Pipeline</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {['pending', 'preparing', 'out-for-delivery', 'delivered', 'cancelled'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setOrderForm(prev => ({ ...prev, orderStatus: status }))}
+                        className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+                          orderForm.orderStatus === status 
+                            ? 'bg-[#1D1C1A] text-white shadow-md' 
+                            : 'bg-white border border-black/10 text-gray-500 hover:border-black/30'
+                        }`}
+                      >
+                        {status.replace(/-/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Delivery Slot</div>
-                  <input
-                    value={orderForm.deliverySlot}
-                    onChange={(e) => setOrderForm((prev) => ({ ...prev, deliverySlot: e.target.value }))}
-                    placeholder="e.g. Today 6-8 PM"
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
+
+                {/* Logistics */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">
+                      <Clock size={12} /> Delivery Slot
+                    </label>
+                    <input
+                      value={orderForm.deliverySlot}
+                      onChange={(e) => setOrderForm((prev) => ({ ...prev, deliverySlot: e.target.value }))}
+                      placeholder="e.g. Today 6-8 PM"
+                      className="w-full rounded-2xl border border-black/5 bg-[#F9F8F6] px-4 py-3 text-sm focus:outline-none focus:border-black/20 focus:bg-white transition-all font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">
+                      <Truck size={12} /> Assign Rider
+                    </label>
+                    <input
+                      value={orderForm.assignedRider}
+                      onChange={(e) => setOrderForm((prev) => ({ ...prev, assignedRider: e.target.value }))}
+                      placeholder="Rider name"
+                      className="w-full rounded-2xl border border-black/5 bg-[#F9F8F6] px-4 py-3 text-sm focus:outline-none focus:border-black/20 focus:bg-white transition-all font-medium"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Assigned Rider</div>
-                  <input
-                    value={orderForm.assignedRider}
-                    onChange={(e) => setOrderForm((prev) => ({ ...prev, assignedRider: e.target.value }))}
-                    placeholder="Rider name"
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1">Notes</div>
+
+                {/* Internal Notes */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">
+                    <FileText size={12} /> Internal Notes
+                  </label>
                   <textarea
                     value={orderForm.notes}
                     onChange={(e) => setOrderForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Add internal notes"
-                    className="w-full rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors resize-none min-h-[80px]"
+                    placeholder="Add internal notes..."
+                    className="w-full rounded-2xl border border-black/5 bg-[#F9F8F6] px-4 py-3 text-sm focus:outline-none focus:border-black/20 focus:bg-white transition-all font-medium resize-none h-20"
                   />
                 </div>
-              </div>
-
-              <div className="border-t border-black/10 pt-4 space-y-3">
-                {(selectedOrder.items || []).map((item: any, idx: number) => (
-                  <div key={`${item.id}-${idx}`} className="flex items-center justify-between text-sm">
-                    <div>{item.name} x {item.qty}</div>
-                    <div>{rupee}{item.price}</div>
+                
+                {/* Payment toggle */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">
+                    Payment Status (Manual Override)
+                  </label>
+                  <div className="flex bg-[#F9F8F6] p-1 rounded-2xl border border-black/5">
+                    {['unpaid', 'paid', 'refunded'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setOrderForm(prev => ({ ...prev, paymentStatus: status }))}
+                        className={`flex-1 py-2 text-[10px] font-bold tracking-widest uppercase rounded-xl transition-all ${
+                          orderForm.paymentStatus === status 
+                            ? 'bg-white text-[#1D1D1F] shadow-sm' 
+                            : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
                   </div>
-                ))}
-                <div className="flex items-center justify-between text-sm font-semibold text-[#1D1D1F] pt-2 border-t border-black/10">
-                  <span>Total Paid</span>
-                  <span>{rupee}{selectedOrder.total ?? "-"}</span>
                 </div>
+
               </div>
 
-              <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sticky bottom-0 bg-white pt-4 border-t border-black/10">
+              {/* Footer */}
+              <div className="p-5 border-t border-black/5 bg-white shrink-0 z-10">
                 <button
                   onClick={saveOrderUpdates}
                   disabled={isSavingOrder}
-                  className="flex-1 py-3 bg-[#1D1C1A] text-white font-semibold tracking-[0.1em] uppercase text-[11px] rounded-full hover:bg-black transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full py-4 bg-[#1D1C1A] text-white font-bold tracking-[0.15em] uppercase text-[11px] rounded-2xl hover:bg-black transition-all hover:-translate-y-0.5 shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  {isSavingOrder ? "Saving..." : "Save Updates"}
-                </button>
-                <button
-                  onClick={() => setSelectedOrder(null)}
-                  className="flex-1 py-3 border border-black/10 text-[#1D1C1A] font-semibold tracking-[0.1em] uppercase text-[11px] rounded-full hover:border-black/20 transition-colors"
-                >
-                  Close
+                  {isSavingOrder ? "Saving Changes..." : "Save Updates"}
                 </button>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
 

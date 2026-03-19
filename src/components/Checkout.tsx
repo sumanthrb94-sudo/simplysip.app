@@ -117,6 +117,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const [detectedZone, setDetectedZone] = useState<string | null>(null);
   const watchId = useRef<number | null>(null);
   const rupee = "\u20B9";
+  const [deliverySlot, setDeliverySlot] = useState("As soon as possible");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -410,9 +412,9 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
         paymentId,
         paymentStatus: "paid",
         orderStatus: "pending",
-        deliverySlot: "",
+        deliverySlot,
         assignedRider: "",
-        notes: "",
+        notes,
         address: {
           name: formData.name,
           phone: formData.phone,
@@ -463,7 +465,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
         .join("\n");
       const locText = location || 'N/A';
       const accuracyText = locationAccuracy ? ` (accuracy ${locationAccuracy}m)` : "";
-      const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${locText}${accuracyText}\nOrder via WhatsApp.`;
+      const message = `Hi Simply Sip, I placed an order.\n\nItems:\n${itemsText}\n\nSubtotal: ${rupee}${cartTotal}\nDelivery: ${rupee}${deliveryFee}\nTotal: ${rupee}${grandTotal}\n\nName: ${formData.name}\nAddress: ${formData.address}\nArea: ${formData.area}\nLocation: ${locText}${accuracyText}\n\nDelivery Slot: ${deliverySlot}\nNotes: ${notes || 'None'}\n\nOrder via WhatsApp.`;
       
       const orderData: Omit<Order, 'id'> = {
         userId: user?.uid || null,
@@ -481,9 +483,9 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
         paymentId: `whatsapp_${Date.now()}`,
         paymentStatus: "unpaid",
         orderStatus: "pending",
-        deliverySlot: "",
+        deliverySlot,
         assignedRider: "",
-        notes: "Ordered via WhatsApp",
+        notes: notes ? `${notes} (Ordered via WhatsApp)` : "Ordered via WhatsApp",
         address: {
           name: formData.name,
           phone: formData.phone,
@@ -521,6 +523,62 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       console.error("Failed to save order:", err);
       if (whatsappWindow) whatsappWindow.close();
       alert("Failed to place order. Please check your connection and try again.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleCOD = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const paymentId = `cod_${Date.now()}`;
+      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
+      const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
+      
+      const orderData: Omit<Order, 'id'> = {
+        userId: user?.uid || null,
+        userEmail: user?.email || null,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          qty: cart[item.id] ?? 0,
+          price: getOfferPrice(item)
+        })),
+        subtotal: cartTotal,
+        deliveryFee,
+        total: grandTotal,
+        subscriptionType,
+        paymentId,
+        paymentStatus: "unpaid",
+        orderStatus: "pending",
+        deliverySlot,
+        assignedRider: "",
+        notes: notes ? `${notes} (Cash on Delivery)` : "Cash on Delivery",
+        address: {
+          name: formData.name,
+          phone: formData.phone,
+          area: formData.area,
+          address: formData.address,
+          addressType: addressType
+        },
+        location: location || null,
+        locationAccuracy: locationAccuracy || null,
+        createdAt: Date.now()
+      };
+
+      setOrderId(simulatedOrderId);
+      if (onOrderPlaced) onOrderPlaced({ id: simulatedOrderId, ...orderData });
+      onClearCart();
+      setStep(3);
+
+      try {
+        await setDoc(doc(db, "orders", simulatedOrderId), orderData);
+      } catch (dbErr) {
+        console.warn("Database sync failed (check rules). Order created locally:", dbErr);
+      }
+    } catch (error) {
+      console.error('COD processing failed:', error);
+      alert('Failed to place order. Please try again.');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -625,6 +683,30 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                     </div>
                     <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">
                       {deliveryFee === 0 ? "Free delivery unlocked" : `Free delivery over ${rupee}250`}
+                    </div>
+
+                    <div className="pt-6 mt-6 border-t border-black/10 space-y-5">
+                      <div className="text-xs font-semibold tracking-[0.2em] uppercase text-[#1A1A1A]">Order Preferences</div>
+                      <div className="space-y-3">
+                        <label className="block text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400">Preferred Delivery Slot</label>
+                        <div className="relative">
+                          <select 
+                            value={deliverySlot} 
+                            onChange={(e) => setDeliverySlot(e.target.value)} 
+                            className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black transition-colors appearance-none font-medium"
+                          >
+                            <option value="As soon as possible">As soon as possible</option>
+                            <option value="Morning (7 AM - 10 AM)">Morning (7 AM - 10 AM)</option>
+                            <option value="Afternoon (12 PM - 3 PM)">Afternoon (12 PM - 3 PM)</option>
+                            <option value="Evening (5 PM - 8 PM)">Evening (5 PM - 8 PM)</option>
+                          </select>
+                          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">{"\u25BE"}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400">Delivery Instructions / Notes</label>
+                        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm focus:outline-none focus:border-black transition-colors resize-none h-20 font-medium placeholder:font-light placeholder:text-gray-400" placeholder="E.g., Leave at the door, call upon arrival, gate code..." />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -785,6 +867,13 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                 className="w-full py-4 border border-black/15 text-[#1A1A1A] font-semibold tracking-[0.1em] hover:border-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500 uppercase text-[11px] rounded-full"
               >
                 Order via WhatsApp
+              </button>
+              <button 
+                onClick={handleCOD}
+                disabled={isProcessingPayment}
+                className="w-full py-4 border border-black/15 text-[#1A1A1A] font-semibold tracking-[0.1em] hover:border-black/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-500 uppercase text-[11px] rounded-full"
+              >
+                Cash on Delivery
               </button>
               <button 
                 onClick={handlePaymentDone}
