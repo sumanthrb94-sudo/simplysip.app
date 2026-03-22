@@ -14,6 +14,8 @@ export interface Product {
   offerPrice: number;
   price: number;
   discountPercent?: number;
+  inStock?: boolean;
+  inventory?: number;
   tagline: string;
   bestSeller: boolean;
   sweetness: number;

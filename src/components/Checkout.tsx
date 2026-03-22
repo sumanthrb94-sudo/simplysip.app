@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2, CreditCard, Banknote, MessageCircle, MapPin, Home, Briefcase, Navigation } from 'lucide-react';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, increment, writeBatch } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Product, SubscriptionProduct, Order, UserProfile } from '../types';
 import { getMrp, getOfferPrice } from '../pricing';
@@ -392,7 +392,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  const buildOrderPayload = (paymentId: string, paymentStatus: string, appendNote: string = ""): Omit<Order, 'id'> => {
+  const buildOrderPayload = (paymentId: string, paymentStatus: "paid" | "unpaid" | "refunded", appendNote: string = ""): Omit<Order, 'id'> => {
     const subscriptionType = cart.sub_weekly ? "weekly" : cart.sub_monthly ? "monthly" : null;
     return {
       userId: user?.uid || null,
@@ -434,9 +434,26 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     setStep(3);
 
     try {
-      await setDoc(doc(db, "orders", orderId), orderData);
+      const batch = writeBatch(db);
+      
+      // Save order
+      batch.set(doc(db, "orders", orderId), orderData);
+      
+      // Decrement inventory for menu items
+      orderData.items.forEach((item) => {
+        // Only decrement for menu items, not subscriptions
+        if (!item.id.startsWith('sub_')) {
+          const productRef = doc(db, "menu", item.id);
+          batch.update(productRef, {
+            inventory: increment(-item.qty)
+          });
+        }
+      });
+
+      await batch.commit();
+      console.log("Order and inventory update successful.");
     } catch (dbErr) {
-      console.warn("Database sync failed (check rules). Order created locally:", dbErr);
+      console.warn("Inventory/Order sync failed. Order might be local only:", dbErr);
     }
   };
 

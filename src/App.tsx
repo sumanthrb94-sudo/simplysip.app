@@ -268,9 +268,10 @@ export default function App() {
       (snapshot) => {
         if (!snapshot.empty) {
           const data: Product[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+          console.log("APP: Menu snapshot received, docs count:", data.length);
           setMenuItems(data.filter((item: any) => !item.isArchived));
         } else {
-          // Fallback or seed if necessary
+          console.log("APP: Menu snapshot empty, using seed data");
           setMenuItems(seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)));
         }
       },
@@ -677,8 +678,6 @@ export default function App() {
             <div id="subscriptions">
               <Subscription 
                 onSubscribe={(plan) => handleSubscription(plan)}
-                selectedPlan={selectedPlan}
-                onPlanChange={(plan) => setSelectedPlan(plan)}
               />
             </div>
             <Story />

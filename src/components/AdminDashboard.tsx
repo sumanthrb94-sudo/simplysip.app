@@ -192,6 +192,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [discountPercent, setDiscountPercent] = useState('20');
   const [offerPrice, setOfferPrice] = useState('120');
   const [image, setImage] = useState('');
+  const [inStock, setInStock] = useState(true);
+  const [inventory, setInventory] = useState('100');
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -264,6 +266,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     const unsubscribeMenu = onSnapshot(
       menuRef,
       (snapshot) => {
+        console.log("ADMIN: Menu snapshot received, docs count:", snapshot.size);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setItems(data.length > 0 ? data : seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item })));
         setMenuError(null);
@@ -708,6 +711,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       discountPercent: Number(discountPercent),
       offerPrice: offerPriceNum,
       price: offerPriceNum,
+      inStock: Boolean(inStock),
+      inventory: Number(inventory),
       updatedAt: Date.now()
     };
 
@@ -737,6 +742,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setDiscountPercent('20');
     setOfferPrice('120');
     setImage('');
+    setInStock(true);
+    setInventory('100');
     setEditingMenuId(null);
     setUploadProgress(0);
     setIsUploading(false);
@@ -750,6 +757,8 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setDiscountPercent(String(item.discountPercent || '0'));
     setOfferPrice(String(item.offerPrice ?? item.price ?? '119'));
     setImage(item.image || '');
+    setInStock(item.inStock !== false); // Default to true if undefined
+    setInventory(String(item.inventory ?? '100'));
     setEditingMenuId(item.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1345,6 +1354,34 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                       </div>
                     </div>
 
+                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">In Stock Status</label>
+                          <p className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter">{inStock ? 'Available for purchase' : 'Marked as Sold Out'}</p>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setInStock(!inStock)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${inStock ? 'bg-emerald-500' : 'bg-red-500'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${inStock ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Inventory Quantity</label>
+                        <div className="flex items-center gap-3">
+                           <input 
+                             type="number" 
+                             value={inventory} 
+                             onChange={e => setInventory(e.target.value)} 
+                             className="flex-1 text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" 
+                           />
+                           <span className="text-[10px] font-bold text-gray-400 uppercase">Units</span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Product Details */}
                     <div>
                       <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Description & Ingredients</label>
@@ -1396,7 +1433,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   {items.map((item) => {
                     const discount = Math.round(((item.mrp - (item.offerPrice ?? item.price)) / item.mrp) * 100);
                     return (
-                      <div key={item.id} className={`group bg-white border ${item.isArchived ? 'border-red-50 opacity-75 grayscale-[0.5]' : 'border-gray-100 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'} rounded-2xl overflow-hidden transition-all duration-300 flex flex-col`}>
+                      <div key={item.id} className={`group bg-white border ${item.isArchived ? 'border-red-50 opacity-75 grayscale-[0.5]' : (item.inStock === false || item.inventory <= 0) ? 'border-red-200 bg-red-50/30 shadow-none' : 'border-gray-100 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'} rounded-2xl overflow-hidden transition-all duration-300 flex flex-col relative`}>
+                        {(item.inStock === false || item.inventory <= 0) && !item.isArchived && (
+                          <div className="absolute top-2 right-2 z-10">
+                             <span className="bg-red-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-lg animate-pulse">Critical: Stock Out</span>
+                          </div>
+                        )}
                         {/* Card Media */}
                         <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
                           <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
@@ -1406,6 +1448,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             </span>
                             {item.isArchived && (
                               <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit">Archived</span>
+                            )}
+                            {(item.inStock === false || item.inventory <= 0) && !item.isArchived && (
+                              <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit">Sold Out</span>
+                            )}
+                            {item.inventory > 0 && item.inventory <= 10 && item.inStock !== false && !item.isArchived && (
+                              <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit">Low Stock</span>
                             )}
                           </div>
                           {discount > 0 && !item.isArchived && (
@@ -1421,6 +1469,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                           <div className="flex items-start justify-between gap-2 mb-2">
                              <h3 className="text-sm font-black text-gray-900 leading-tight group-hover:text-black transition-colors">{item.name}</h3>
                              <div className="flex gap-1 shrink-0 -mt-1 -mr-1">
+                                {(item.inStock === false || item.inventory <= 0) && (
+                                   <div className="px-2 py-1 bg-red-100 border border-red-200 rounded-lg flex items-center gap-1.5 mr-1">
+                                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                                      <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Out of Stock</span>
+                                   </div>
+                                )}
                                 <button onClick={() => handleEditClick(item)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                                    <Pencil size={14} />
                                 </button>

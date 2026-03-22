@@ -1,4 +1,4 @@
-﻿﻿﻿import { useEffect, useRef, useState } from 'react';
+﻿﻿import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Star } from 'lucide-react';
@@ -137,9 +137,16 @@ function MenuCard({
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+            className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'grayscale opacity-60' : ''}`}
             referrerPolicy="no-referrer"
           />
+          {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+              <div className="bg-white/90 px-4 py-2 rounded-xl shadow-lg border border-black/5 transform -rotate-12">
+                <span className="text-xs font-black uppercase tracking-[0.2em] text-[#1D1C1A]">Sold Out</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="px-2 text-center flex flex-col flex-1 min-w-0">
           <h4 className="text-base sm:text-xl font-semibold tracking-tight text-[#1D1C1A] font-display whitespace-nowrap overflow-hidden text-ellipsis">
@@ -157,6 +164,9 @@ function MenuCard({
             </span>
           </div>
           <IngredientTicker desc={product.desc} />
+          {product.inventory !== undefined && product.inventory > 0 && product.inventory <= 10 && product.inStock !== false && (
+            <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-600">Only {product.inventory} left in stock</p>
+          )}
         </div>
       </button>
       <div className="mt-4 flex items-center justify-center h-9">
@@ -164,7 +174,7 @@ function MenuCard({
           <div className="flex items-center justify-center gap-4">
             <button
               type="button"
-              onClick={() => onDecrement(product)}
+              onClick={(e) => { e.stopPropagation(); onDecrement(product); }}
               className="h-9 w-9 flex items-center justify-center rounded-full border-2 border-[#1D1C1A] text-base font-semibold text-[#1D1C1A] hover:bg-black/5 transition-colors"
               aria-label={`Decrease ${product.name}`}
             >
@@ -173,8 +183,9 @@ function MenuCard({
             <span className="text-sm font-semibold text-[#1D1C1A] w-6 text-center">{qty}</span>
             <button
               type="button"
-              onClick={() => onIncrement(product)}
-              className="h-9 w-9 flex items-center justify-center rounded-full border-2 border-[#1D1C1A] bg-[#1D1C1A] text-base font-semibold text-white hover:bg-black transition-colors"
+              disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
+              onClick={(e) => { e.stopPropagation(); onIncrement(product); }}
+              className={`h-9 w-9 flex items-center justify-center rounded-full border-2 border-[#1D1C1A] bg-[#1D1C1A] text-base font-semibold text-white transition-colors ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black'}`}
               aria-label={`Increase ${product.name}`}
             >
               +
@@ -183,10 +194,11 @@ function MenuCard({
         ) : (
           <button
             type="button"
-            onClick={() => onIncrement(product)}
-            className="h-9 px-6 rounded-full border-2 border-[#1D1C1A] text-[11px] font-bold tracking-[0.15em] uppercase text-[#1D1C1A] hover:bg-[#1D1C1A] hover:text-white transition-colors"
+            disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
+            onClick={(e) => { e.stopPropagation(); onIncrement(product); }}
+            className={`h-9 px-6 rounded-full border-2 border-[#1D1C1A] text-[11px] font-bold tracking-[0.15em] uppercase transition-colors ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50' : 'text-[#1D1C1A] hover:bg-[#1D1C1A] hover:text-white'}`}
           >
-            Add to Cart
+            {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Out of Stock' : 'Add to Cart'}
           </button>
         )}
       </div>
@@ -386,18 +398,20 @@ function ProductPanel({
                       </button>
                       <span className="text-green-800 font-bold text-sm">{qty}</span>
                       <button
+                        disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
                         onClick={() => onIncrement(product)}
-                        className="w-10 h-10 flex items-center justify-center text-green-700 font-bold text-xl hover:bg-green-100 rounded-lg transition-colors"
+                        className={`w-10 h-10 flex items-center justify-center font-bold text-xl rounded-lg transition-colors ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'text-gray-300 cursor-not-allowed' : 'text-green-700 hover:bg-green-100'}`}
                       >
                         +
                       </button>
                     </div>
                   ) : (
                     <button
+                      disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
                       onClick={() => onIncrement(product)}
-                      className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold tracking-wide transition-colors shadow-sm"
+                      className={`w-full h-12 rounded-xl text-sm font-bold tracking-wide transition-colors shadow-sm ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                     >
-                      Add to Cart
+                      {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Sold Out' : 'Add to Cart'}
                     </button>
                   )}
                 </div>
