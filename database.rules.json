@@ -19,9 +19,12 @@
       }
     },
     "orders": {
-      ".read": "auth != null",
+      // Secure top-level read: Only admins can list all orders.
+      ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
       ".write": "auth != null",
       "$orderId": {
+        // Secure individual read: Only owner or admin.
+        ".read": "data.child('userId').val() === auth.uid || root.child('admins').child(auth.uid).exists()",
         ".validate": "newData.hasChildren(['userId', 'userEmail', 'items', 'subtotal', 'deliveryFee', 'total', 'paymentStatus', 'orderStatus', 'createdAt'])",
         "userId": {
           ".validate": "newData.val() === auth.uid"
@@ -42,10 +45,12 @@
           ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 50000"
         },
         "paymentStatus": {
-          ".validate": "newData.val() === 'paid' || newData.val() === 'unpaid' || newData.val() === 'refunded' || newData.val() === 'failed'"
+          // Non-admins MUST set as unpaid initially.
+          ".validate": "root.child('admins').child(auth.uid).exists() || newData.val() === 'unpaid'"
         },
         "orderStatus": {
-          ".validate": "newData.val() === 'pending' || newData.val() === 'confirmed' || newData.val() === 'preparing' || newData.val() === 'out-for-delivery' || newData.val() === 'delivered' || newData.val() === 'cancelled'"
+          // Non-admins MUST set as pending initially.
+          ".validate": "root.child('admins').child(auth.uid).exists() || newData.val() === 'pending'"
         },
         "createdAt": {
           ".validate": "newData.isNumber() && newData.val() <= now + 300000 && newData.val() >= now - 86400000"

@@ -26,11 +26,10 @@ service cloud.firestore {
       allow read, write: if isOwner(uid) || isAdmin();
     }
 
-    // Admin list: users can read their own admin doc to verify; only admins can update.
-    // DEMO FIX: Allow a user to write their own document to grant themselves admin access for testing.
+    // Admin list: only admins can manage this collection.
     match /admins/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow write: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
     }
 
     // Menu is publicly readable; only admins can modify.
@@ -47,8 +46,11 @@ service cloud.firestore {
           && request.resource.data.items.size() > 0
           && request.resource.data.total > 0
           && request.resource.data.total == request.resource.data.subtotal + request.resource.data.deliveryFee
-          && request.resource.data.paymentStatus in ["unpaid", "paid", "refunded", "failed"]
-          && request.resource.data.orderStatus in ["pending", "confirmed", "preparing", "out-for-delivery", "delivered", "cancelled"];
+          // Non-admins MUST create orders as unpaid and pending
+          && (isAdmin() || (
+              request.resource.data.paymentStatus == "unpaid" && 
+              request.resource.data.orderStatus == "pending"
+          ));
       }
 
       allow create: if isAdmin() || (isSignedIn() && validOrder());
