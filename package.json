@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx --tsconfig tsconfig.server.json server.ts",
+    "dev:client": "vite",
+    "reseed-menu": "node --input-type=module scripts/reseed-menu.js",
     "start": "node server.ts",
     "build": "vite build",
     "preview": "vite preview",

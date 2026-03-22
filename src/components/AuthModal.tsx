@@ -12,10 +12,9 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebaseConfig';
-import { X, Phone, ChevronLeft } from 'lucide-react';
+import { X, Phone, ChevronLeft, ArrowRight } from 'lucide-react';
 
 type AuthMode = "login" | "signup";
-
 type AuthFlow = "email" | "phone" | "reset";
 
 interface AuthModalProps {
@@ -73,9 +72,7 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
         "recaptcha-container",
         {
           size: "invisible",
-          callback: () => {
-            // recaptcha solved
-          }
+          callback: () => {}
         }
       );
     }
@@ -231,7 +228,6 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
     }
   }, [isOpen, mode]);
 
-
   const isEmailValid = /\S+@\S+\.\S+/.test(email);
   const canSubmit =
     authFlow === "email"
@@ -249,254 +245,259 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          key="auth-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] bg-[#1D1C1A]/20 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
-        >
+        <>
+          {/* Glassmorphism Backdrop */}
           <motion.div
-            key="auth-modal"
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-md bg-white rounded-[2.5rem] p-6 sm:p-8 border border-black/5 shadow-[0_40px_100px_-30px_rgba(0,0,0,0.3)] relative overflow-hidden"
+            key="auth-backdrop-premium"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md cursor-pointer"
+          />
+
+          {/* Premium Right-Aligned Slide Drawer */}
+          <motion.div
+            key="auth-drawer"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 220, mass: 0.8 }}
+            className="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white z-[101] shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.3)] flex flex-col"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex flex-col">
-                <div className="text-xl font-extrabold tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
-                  SIMPLYSIP
-                </div>
-                <div className="text-lg text-[#1D1C1A] font-script font-semibold tracking-[0.08em] uppercase -mt-1">
-                  ELIXIRS
-                </div>
-              </div>
+            {/* Elegant Header Area */}
+            <div className="flex items-center justify-between px-8 py-6 sm:px-12 sm:pt-12 sm:pb-8">
               <button
                 onClick={onClose}
-                className="h-10 w-10 flex items-center justify-center rounded-full bg-[#F9F8F6] text-gray-500 hover:text-black hover:bg-gray-100 transition-colors"
+                className="w-10 h-10 rounded-full border border-black/10 flex items-center justify-center text-gray-400 hover:text-black hover:border-black/30 transition-all bg-[#FAFAFA]"
               >
-                <X size={18} />
+                <X size={16} strokeWidth={2.5} />
               </button>
             </div>
 
-            {authFlow === "email" ? (
-              <div className="flex bg-[#F9F8F6] p-1 rounded-2xl border border-black/5 mb-6">
-                <button
-                  onClick={() => {
-                    onModeChange("login");
-                    setAuthFlow("email");
-                  }}
-                  className={`flex-1 py-2.5 text-[10px] font-bold tracking-widest uppercase rounded-xl transition-all ${
-                    mode === "login" ? "bg-white text-[#1D1D1F] shadow-sm" : "text-gray-400 hover:text-gray-600"
-                  }`}
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => {
-                    onModeChange("signup");
-                    setAuthFlow("email");
-                  }}
-                  className={`flex-1 py-2.5 text-[10px] font-bold tracking-widest uppercase rounded-xl transition-all ${
-                    mode === "signup" ? "bg-white text-[#1D1D1F] shadow-sm" : "text-gray-400 hover:text-gray-600"
-                  }`}
-                >
-                  Sign Up
-                </button>
+            <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-12 sm:px-12">
+              <div className="mb-10">
+                <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-[#1A1A1A] font-display mb-3">
+                  {authFlow === "reset" ? "Reset." : authFlow === "phone" ? "Enter OTP." : mode === "login" ? "Welcome" : "Sign Up"}
+                  {authFlow === "email" && mode === "login" && <span className="block text-gray-400 font-script font-normal text-3xl sm:text-4xl mt-2 italic">back</span>}
+                </h1>
+                <p className="text-sm font-medium text-gray-400 leading-relaxed max-w-[280px]">
+                  {authFlow === "reset" ? "We'll send you a secure link to get you back in." : authFlow === "phone" ? "Verify your number to secure your account." : mode === "login" ? "Enter your details to access your premium elixirs." : "Join the SimplySip experience today."}
+                </p>
               </div>
-            ) : (
-              <div className="flex items-center mb-6">
-                <button
-                  onClick={() => setAuthFlow("email")}
-                  className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black transition-colors"
-                >
-                  <ChevronLeft size={14} /> Back
-                </button>
-                <div className="mx-auto pr-8 text-[11px] font-bold uppercase tracking-[0.2em] text-[#1D1C1A]">
-                  {authFlow === "phone" ? "Phone Login" : "Reset Password"}
-                </div>
-              </div>
-            )}
 
-            <form
-              onSubmit={(e) => {
-                if (authFlow === "email") {
-                  handleSubmit(e);
-                } else {
-                  e.preventDefault();
-                }
-              }}
-              className="space-y-4"
-            >
-              {authFlow === "email" && mode === "signup" && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Full Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light"
-                  />
+              {/* Million Dollar Toggle Layout */}
+              {authFlow === "email" && (
+                <div className="flex gap-4 mb-8 border-b border-black/5 pb-1">
+                  <button
+                    onClick={() => { onModeChange("login"); setAuthFlow("email"); }}
+                    className={`pb-3 text-xs font-bold uppercase tracking-[0.2em] transition-all relative ${
+                      mode === "login" ? "text-[#1A1A1A]" : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    Login
+                    {mode === "login" && <motion.div layoutId="auth-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1A1A1A]" />}
+                  </button>
+                  <button
+                    onClick={() => { onModeChange("signup"); setAuthFlow("email"); }}
+                    className={`pb-3 text-xs font-bold uppercase tracking-[0.2em] transition-all relative ${
+                      mode === "signup" ? "text-[#1A1A1A]" : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    Create Account
+                    {mode === "signup" && <motion.div layoutId="auth-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1A1A1A]" />}
+                  </button>
                 </div>
               )}
 
-              {authFlow !== "phone" && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Email Address</label>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light"
-                  />
-                </div>
-              )}
+              {/* Enhanced Minimalist Form */}
+              <form
+                onSubmit={(e) => {
+                  if (authFlow === "email") handleSubmit(e);
+                  else e.preventDefault();
+                }}
+                className="space-y-6"
+              >
+                {authFlow === "email" && mode === "signup" && (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. John Doe"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-black/10 bg-transparent px-1 py-3 text-base focus:ring-0 focus:outline-none focus:border-[#1A1A1A] transition-colors font-medium placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
 
-              {authFlow === "phone" && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    placeholder="10-digit mobile number"
-                    value={phone}
-                    onChange={(e) => {
-                      const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                      if (numericValue.length <= 10) {
-                        setPhone(numericValue);
-                      }
-                    }}
-                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light"
-                  />
-                </div>
-              )}
+                {authFlow !== "phone" && (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-black/10 bg-transparent px-1 py-3 text-base focus:ring-0 focus:outline-none focus:border-[#1A1A1A] transition-colors font-medium placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
 
-              {authFlow === "phone" && otpSent && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">One-Time Password</label>
-                  <input
-                    type="tel"
-                    placeholder="Enter 6-digit OTP"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light tracking-widest"
-                  />
+                {authFlow === "phone" && (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      value={phone}
+                      onChange={(e) => {
+                        const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                        if (numericValue.length <= 10) setPhone(numericValue);
+                      }}
+                      className="w-full rounded-none border-0 border-b-2 border-black/10 bg-transparent px-1 py-3 text-base focus:ring-0 focus:outline-none focus:border-[#1A1A1A] transition-colors font-medium placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
+
+                {authFlow === "phone" && otpSent && (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">One-Time Password</label>
+                    <input
+                      type="tel"
+                      placeholder="Enter 6-digit OTP"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-black/10 bg-transparent px-1 py-3 text-xl focus:ring-0 focus:outline-none focus:border-[#1A1A1A] transition-colors font-bold tracking-[0.5em] placeholder:text-gray-300 placeholder:tracking-normal placeholder:font-medium placeholder:text-base"
+                    />
+                  </div>
+                )}
+
+                {authFlow === "email" && (
+                  <div className="space-y-2 relative">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Password</label>
+                      {authFlow === "email" && mode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => setAuthFlow("reset")}
+                          className="text-[10px] font-bold text-gray-400 hover:text-[#1D1C1A] uppercase tracking-[0.1em] transition-colors"
+                        >
+                          Forgot?
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-black/10 bg-transparent px-1 py-3 text-base focus:ring-0 focus:outline-none focus:border-[#1A1A1A] transition-colors font-medium placeholder:text-gray-300"
+                    />
+                  </div>
+                )}
+
+                {error && (
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="text-xs font-bold text-red-500 bg-red-50 p-4 border-l-4 border-red-500">
+                    {error}
+                  </motion.div>
+                )}
+                {authFlow === "reset" && resetSent && (
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="text-xs font-bold text-green-700 bg-green-50 p-4 border-l-4 border-green-500">
+                    Reset link sent. Check your inbox.
+                  </motion.div>
+                )}
+
+                <div className="pt-6">
+                  {authFlow === "email" && (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !canSubmit}
+                      className="group relative w-full h-14 bg-[#1A1A1A] text-white rounded-none flex items-center justify-center gap-3 text-xs font-bold tracking-[0.2em] uppercase hover:bg-black transition-all disabled:opacity-40 disabled:hover:bg-[#1A1A1A] overflow-hidden"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        {isSubmitting ? "Processing..." : mode === "login" ? "Enter Experience" : "Join SimplySip"}
+                        {!isSubmitting && <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />}
+                      </span>
+                    </button>
+                  )}
+
+                  {authFlow === "phone" && (
+                    <button
+                      type="button"
+                      onClick={otpSent ? handleVerifyPhoneOtp : handleSendPhoneOtp}
+                      disabled={isSubmitting || !canSubmit}
+                      className="group relative w-full h-14 bg-[#1A1A1A] text-white rounded-none flex items-center justify-center gap-3 text-xs font-bold tracking-[0.2em] uppercase hover:bg-black transition-all disabled:opacity-40 disabled:hover:bg-[#1A1A1A] overflow-hidden"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        {isSubmitting ? "Sending..." : otpSent ? "Verify Code" : "Send OTP"}
+                        {!isSubmitting && <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />}
+                      </span>
+                    </button>
+                  )}
+
+                  {authFlow === "reset" && (
+                    <button
+                      type="button"
+                      onClick={handleResetPassword}
+                      disabled={isSubmitting || !canSubmit}
+                      className="group relative w-full h-14 bg-[#1A1A1A] text-white rounded-none flex items-center justify-center gap-3 text-xs font-bold tracking-[0.2em] uppercase hover:bg-black transition-all disabled:opacity-40 overflow-hidden"
+                    >
+                      <span className="relative z-10">
+                        {isSubmitting ? "Sending..." : "Send Reset Link"}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* Return to Core Modes */}
+              {authFlow !== "email" && (
+                <div className="mt-8 text-center border-t border-black/5 pt-8">
+                  <button
+                    onClick={() => { setAuthFlow("email"); setError(null); }}
+                    className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-black transition-colors inline-flex items-center gap-2"
+                  >
+                    <ChevronLeft size={14} /> Back to standard login
+                  </button>
                 </div>
               )}
 
               {authFlow === "email" && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] px-4 py-3.5 text-sm focus:outline-none focus:border-[#1A1A1A] focus:bg-white transition-all font-medium placeholder:text-gray-400 placeholder:font-light"
-                  />
-                </div>
+                <>
+                  <div className="flex items-center gap-4 my-10">
+                    <div className="h-px flex-1 bg-black/5" />
+                    <span className="text-[10px] uppercase tracking-[0.4em] text-gray-300 font-bold">Or</span>
+                    <div className="h-px flex-1 bg-black/5" />
+                  </div>
+
+                  <div className="space-y-4">
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={isSubmitting}
+                      className="w-full h-14 bg-white border border-black/10 text-[#1A1A1A] rounded-none text-[11px] font-bold tracking-[0.1em] uppercase hover:bg-[#FAFAFA] hover:border-black/30 transition-all flex items-center justify-center gap-3"
+                    >
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
+                      Continue with Google
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => { setAuthFlow("phone"); setOtpSent(false); }}
+                      className="w-full h-14 bg-white border border-black/10 text-[#1A1A1A] rounded-none text-[11px] font-bold tracking-[0.1em] uppercase hover:bg-[#FAFAFA] hover:border-black/30 transition-all flex items-center justify-center gap-3"
+                    >
+                      <Phone size={14} className="text-gray-500" />
+                      Continue with Phone
+                    </button>
+                  </div>
+                </>
               )}
 
-              {error && (
-                <div className="text-[11px] font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100">
-                  {error}
-                </div>
-              )}
-              {authFlow === "reset" && resetSent && (
-                <div className="text-[11px] font-bold text-green-600 bg-green-50 p-3 rounded-xl border border-green-100">
-                  Reset link sent. Check your inbox.
-                </div>
-              )}
-
-              <div className="pt-2">
-                {authFlow === "email" && (
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !canSubmit}
-                    className="w-full py-4 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:shadow-none"
-                  >
-                    {isSubmitting ? "Please wait..." : mode === "login" ? "Login to Account" : "Create Account"}
-                  </button>
-                )}
-
-                {authFlow === "phone" && (
-                  <button
-                    type="button"
-                    onClick={otpSent ? handleVerifyPhoneOtp : handleSendPhoneOtp}
-                    disabled={isSubmitting || !canSubmit}
-                    className="w-full py-4 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:shadow-none"
-                  >
-                    {isSubmitting
-                      ? "Please wait..."
-                      : otpSent
-                      ? "Verify OTP"
-                      : "Send OTP"}
-                  </button>
-                )}
-
-                {authFlow === "reset" && (
-                  <button
-                    type="button"
-                    onClick={handleResetPassword}
-                    disabled={isSubmitting || !canSubmit}
-                    className="w-full py-4 bg-[#1D1C1A] text-white rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] disabled:opacity-50 disabled:shadow-none"
-                  >
-                    {isSubmitting ? "Please wait..." : "Send Reset Link"}
-                  </button>
-                )}
-              </div>
-            </form>
-
-            {authFlow === "email" && mode === "login" && (
-              <div className="text-center mt-4">
-                <button
-                  type="button"
-                  onClick={() => setAuthFlow("reset")}
-                  className="text-[10px] font-bold text-gray-500 hover:text-[#1D1C1A] uppercase tracking-[0.1em] transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-            )}
-
-            {authFlow === "email" && (
-              <>
-                <div className="flex items-center gap-3 my-6">
-                  <div className="h-px flex-1 bg-black/5" />
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-gray-400 font-bold">Or continue with</span>
-                  <div className="h-px flex-1 bg-black/5" />
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={isSubmitting}
-                    className="w-full py-3.5 bg-white border-2 border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.1em] uppercase hover:bg-[#FAFAFA] hover:border-black/15 transition-all flex items-center justify-center gap-3"
-                  >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
-                    Google
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => { setAuthFlow("phone"); setOtpSent(false); }}
-                    className="w-full py-3.5 bg-white border-2 border-black/5 text-[#1D1C1A] rounded-2xl text-[11px] font-bold tracking-[0.1em] uppercase hover:bg-[#FAFAFA] hover:border-black/15 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Phone size={14} className="text-gray-600" />
-                    Phone Number
-                  </button>
-                </div>
-              </>
-            )}
-
-            <div id="recaptcha-container" className="hidden" />
+              <div id="recaptcha-container" className="hidden" />
+            </div>
           </motion.div>
-        </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

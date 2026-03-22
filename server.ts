@@ -10,18 +10,27 @@ dotenv.config();
 
 // Initialize Firebase Admin SDK
 const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+let db: admin.firestore.Firestore | null = null;
+
 if (serviceAccountKey) {
-  const serviceAccount = JSON.parse(serviceAccountKey);
-  if (admin.apps.length === 0) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
-    });
+  try {
+    const serviceAccount = JSON.parse(serviceAccountKey);
+    if (admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
+      });
+    }
+    db = admin.firestore();
+    console.log("✅ Firebase Admin SDK initialized.");
+  } catch (e) {
+    console.warn("⚠️  Firebase Admin init failed:", e);
   }
+} else {
+  console.warn("⚠️  FIREBASE_SERVICE_ACCOUNT_KEY not set — Admin SDK routes will be unavailable. Use npm run dev:client for frontend-only dev.");
 }
 
 
-const db = admin.firestore();
 const app = express();
 const DEFAULT_PORT = 3000;
 const PORT = Number(process.env.PORT) || DEFAULT_PORT;
@@ -49,6 +58,7 @@ const authenticate = async (req: express.Request, res: express.Response, next: e
 
 // API Routes
 app.get("/api/menu", async (req, res) => {
+  if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   const menuSnapshot = await db.collection("menu").get();
   const menuItems = menuSnapshot.docs.map((doc) => doc.data());
   if (menuItems.length === 0) {
@@ -62,6 +72,7 @@ app.get("/api/menu", async (req, res) => {
 });
 
 app.post("/api/menu", authenticate, async (req, res) => {
+  if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   const newItem = {
     id: Date.now().toString(),
     ...req.body,
@@ -71,6 +82,7 @@ app.post("/api/menu", authenticate, async (req, res) => {
 });
 
 app.delete("/api/menu", authenticate, async (req, res) => {
+  if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
     res.status(400).json({ error: "Missing id" });
@@ -81,6 +93,7 @@ app.delete("/api/menu", authenticate, async (req, res) => {
 });
 
 app.delete("/api/menu/:id", authenticate, async (req, res) => {
+  if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   await db.collection("menu").doc(req.params.id).delete();
   res.json({ success: true });
 });

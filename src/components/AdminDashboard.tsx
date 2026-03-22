@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw, CheckSquare, Square, Upload, Loader2, CheckCircle2 } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../firebaseConfig';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
 
 type OrderFilter = "all" | "pending" | "paid" | "delivered" | "cancelled";
@@ -118,7 +119,15 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     notes: ""
   });
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'analytics'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'analytics'>(() => {
+    const saved = sessionStorage.getItem('simplysip_admin_tab');
+    return (saved === 'menu' || saved === 'analytics') ? saved : 'orders';
+  });
+  const handleTabChange = (tab: 'orders' | 'menu' | 'analytics') => {
+    sessionStorage.setItem('simplysip_admin_tab', tab);
+    setActiveTab(tab);
+  };
+  const [orderSearch, setOrderSearch] = useState('');
 
   useEffect(() => {
     setSelectedOrderIds(new Set());
@@ -180,9 +189,59 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [desc, setDesc] = useState('');
   const [category, setCategory] = useState<"Signature Blends" | "Single Fruit Series">("Signature Blends");
   const [mrp, setMrp] = useState('150');
-  const [offerPrice, setOfferPrice] = useState('119');
+  const [discountPercent, setDiscountPercent] = useState('20');
+  const [offerPrice, setOfferPrice] = useState('120');
   const [image, setImage] = useState('');
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-calculate offerPrice when MRP or Discount changes
+  useEffect(() => {
+    const m = Number(mrp);
+    const d = Number(discountPercent);
+    if (m > 0) {
+      const calculated = Math.round(m * (1 - d / 100));
+      setOfferPrice(String(calculated));
+    }
+  }, [mrp, discountPercent]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert("Please select an image file.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(Math.round(progress));
+      },
+      (error) => {
+        console.error("Upload failed:", error);
+        alert("Upload failed. Make sure Storage rules allow uploads.");
+        setIsUploading(false);
+      },
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        setImage(downloadURL);
+        setIsUploading(false);
+        setUploadProgress(0);
+      }
+    );
+  };
 
   const handleSeedMenu = async () => {
     if (items.length > 0) return;
@@ -615,6 +674,17 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     const mrpNum = Number(mrp);
     const offerPriceNum = Number(offerPrice);
 
+    console.log("Saving menu item...", { name, mrp, discountPercent, offerPrice, image, desc, category, editingMenuId });
+    
+    // Manual Validation
+    if (!name.trim()) {
+      alert("Product Name is required.");
+      return;
+    }
+    if (!desc.trim()) {
+      alert("Product Description is required.");
+      return;
+    }
     if (mrpNum <= 0 || offerPriceNum <= 0) {
       alert("MRP and Offer Price must be positive numbers.");
       return;
@@ -623,17 +693,19 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       alert("Offer Price cannot be greater than MRP.");
       return;
     }
-    if (!image.startsWith('http')) {
-      alert("Please enter a valid image URL starting with http(s)://");
-      return;
+    
+    // Allow saving without strict image URL validation to support image uploads
+    if (!image && !editingMenuId) {
+      if (!window.confirm("No image provided. Continue anyway?")) return;
     }
     
     const payload = {
-      name,
-      desc,
+      name: name.trim(),
+      desc: desc.trim(),
       image,
       category,
       mrp: mrpNum,
+      discountPercent: Number(discountPercent),
       offerPrice: offerPriceNum,
       price: offerPriceNum,
       updatedAt: Date.now()
@@ -641,16 +713,19 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
     try {
       if (editingMenuId) {
+        console.log("Updating existing item:", editingMenuId);
         await updateDoc(doc(db, "menu", editingMenuId), payload);
         alert("Menu item updated successfully!");
       } else {
-        await addDoc(collection(db, "menu"), { ...payload, createdAt: Date.now() });
+        console.log("Adding new item to catalog...");
+        const docRef = await addDoc(collection(db, "menu"), { ...payload, createdAt: Date.now() });
+        console.log("Added with ID:", docRef.id);
         alert("Menu item added successfully!");
       }
       resetMenuForm();
     } catch (err: any) {
-      console.error("Failed to save menu item:", err);
-      alert(`Failed to save item: ${err.message || 'Check database rules.'}`);
+      console.error("CRITICAL: Failed to save menu item:", err);
+      alert(`Error: ${err.message || 'Check database rules.'}`);
     }
   };
 
@@ -659,9 +734,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setDesc('');
     setCategory('Signature Blends');
     setMrp('150');
-    setOfferPrice('119');
+    setDiscountPercent('20');
+    setOfferPrice('120');
     setImage('');
     setEditingMenuId(null);
+    setUploadProgress(0);
+    setIsUploading(false);
   };
 
   const handleEditClick = (item: any) => {
@@ -669,6 +747,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setDesc(item.desc || '');
     setCategory(item.category || 'Signature Blends');
     setMrp(String(item.mrp || '150'));
+    setDiscountPercent(String(item.discountPercent || '0'));
     setOfferPrice(String(item.offerPrice ?? item.price ?? '119'));
     setImage(item.image || '');
     setEditingMenuId(item.id);
@@ -761,7 +840,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
               {(['orders', 'menu', 'analytics'] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => handleTabChange(tab)}
                   className={`flex-1 sm:flex-none min-w-[90px] px-4 py-1.5 text-xs font-semibold rounded-md transition-all capitalize ${
                     activeTab === tab 
                       ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50' 
@@ -795,218 +874,232 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-wider text-gray-300 font-medium">New Order Arrived</div>
-              <div className="text-sm font-bold text-white">{toastOrder?.address?.name || "Customer"} • {rupee}{toastOrder?.total}</div>
+              <div className="text-sm font-bold text-white">{toastOrder?.address?.name || "Customer"} â€¢ {rupee}{toastOrder?.total}</div>
             </div>
           </motion.button>
         )}
 
         {activeTab === 'analytics' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            {/* KPIs */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <div className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5"><Users size={14}/> Total Users</div>
-                <div className="text-3xl font-bold text-gray-900">{statsLoading ? "-" : totalUsers}</div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <div className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5"><Package size={14}/> Upcoming Orders</div>
-                <div className="text-3xl font-bold text-gray-900">{statsLoading ? "-" : upcomingOrders}</div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm col-span-2 sm:col-span-1">
-                <div className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5"><Star size={14}/> Active Subs</div>
-                <div className="text-3xl font-bold text-gray-900">{statsLoading ? "-" : subscribers}</div>
-              </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+            {/* 6-KPI Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { label: 'Total Revenue', value: rupee + Math.round(displayOrders.filter(o=>(o.paymentStatus||'')==='paid').reduce((s,o)=>s+Number(o.total||0),0)).toLocaleString('en-IN'), sub: 'all-time paid', color: 'emerald' },
+                { label: 'Total Orders', value: displayOrders.length, sub: displayOrders.filter(o=>(o.orderStatus||o.status||'')!=='cancelled').length+' active', color: 'blue' },
+                { label: 'Avg Order Value', value: rupee+(displayOrders.length?Math.round(displayOrders.reduce((s,o)=>s+Number(o.total||0),0)/displayOrders.length):0), sub: 'across all orders', color: 'violet' },
+                { label: 'Paid Rate', value: displayOrders.length?Math.round(displayOrders.filter(o=>(o.paymentStatus||'')==='paid').length/displayOrders.length*100)+'%':'â€”', sub: 'conversion rate', color: 'amber' },
+                { label: 'Active Subs', value: subscribers, sub: 'paying subscribers', color: 'pink' },
+                { label: 'Users', value: statsLoading?'â€¦':totalUsers, sub: 'registered accounts', color: 'gray' },
+              ].map(({label,value,sub,color})=>(
+                <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                  <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 text-${color}-500`}>{label}</div>
+                  <div className="text-2xl font-extrabold text-gray-900 font-mono tabular-nums">{value}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>
+                </div>
+              ))}
             </div>
 
-            {/* Revenue Tool */}
-            <div className="bg-white border border-gray-200 rounded-xl p-5 sm:p-6 shadow-sm">
-              <h2 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Calendar size={16} className="text-gray-400" /> Daily Revenue Report
-              </h2>
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Day</label>
-                  <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 font-medium">
-                    {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((day) => <option key={day} value={day}>{day}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Month</label>
-                  <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 font-medium">
-                    {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((label, index) => <option key={label} value={index}>{label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Year</label>
-                  <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 font-medium">
-                    {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200 flex flex-col justify-center">
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Orders Fulfilled</div>
-                  <div className="text-2xl font-bold text-gray-900">{selectedStats.count}</div>
-                </div>
-                <div className="flex-1 bg-emerald-50 rounded-lg p-4 border border-emerald-100 flex flex-col justify-center">
-                  <div className="text-xs font-semibold text-emerald-700 uppercase mb-1">Net Revenue</div>
-                  <div className="text-2xl font-bold text-emerald-700">
-                  {rupee}{Math.round(selectedStats.revenue).toLocaleString('en-IN')}
+            {/* 30-Day Revenue Bar Chart */}
+            {(()=>{
+              const days=Array.from({length:30},(_,i)=>{
+                const d=new Date();d.setDate(d.getDate()-(29-i));
+                const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                return{key,date:d,rev:dailyStats[key]?.revenue||0,cnt:dailyStats[key]?.count||0};
+              });
+              const maxRev=Math.max(...days.map(d=>d.rev),1);
+              return(
+                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-gray-900">30-Day Revenue</h2>
+                    <span className="text-xs text-gray-400">{rupee}{Math.round(days.reduce((s,d)=>s+d.rev,0)).toLocaleString('en-IN')} total</span>
                   </div>
+                  <div className="flex items-end gap-px h-20">
+                    {days.map((d,i)=>(
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end group" title={`${d.date.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}: ${rupee}${Math.round(d.rev)}, ${d.cnt} orders`}>
+                        <div className="w-full bg-emerald-500 group-hover:bg-emerald-400 rounded-sm transition-colors" style={{height:`${Math.max(d.rev/maxRev*100,d.rev>0?4:1)}%`,minHeight:'2px'}}/>
+                        {i%6===0&&<div className="text-[7px] text-gray-300 mt-0.5 font-mono">{d.date.getDate()}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Top Products + Daily Picker */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                <h2 className="text-sm font-bold text-gray-900 mb-3">Top Products by Revenue</h2>
+                {(()=>{
+                  const map:Record<string,{name:string;rev:number;qty:number}>={}
+                  displayOrders.forEach(order=>{
+                    if(!Array.isArray(order.items))return;
+                    order.items.forEach((item:any)=>{
+                      const k=item.name||item.id;
+                      if(!map[k])map[k]={name:item.name||item.id,rev:0,qty:0};
+                      map[k].rev+=Number(item.price||0)*Number(item.qty||1);
+                      map[k].qty+=Number(item.qty||1);
+                    });
+                  });
+                  const top=Object.values(map).sort((a,b)=>b.rev-a.rev).slice(0,5);
+                  const maxR=Math.max(...top.map(t=>t.rev),1);
+                  return top.length===0?<p className="text-xs text-gray-400">No order data yet.</p>:(
+                    <div className="space-y-2.5">
+                      {top.map((t,i)=>(
+                        <div key={t.name} className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-gray-300 w-3">{i+1}</span>
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs font-medium mb-1">
+                              <span className="truncate max-w-[140px] text-gray-700">{t.name}</span>
+                              <span className="font-mono font-bold text-gray-900">{rupee}{Math.round(t.rev)}</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full"><div className="h-full bg-emerald-500 rounded-full" style={{width:`${t.rev/maxR*100}%`}}/></div>
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-mono w-8 text-right">Ã—{t.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><Calendar size={13} className="text-gray-400"/>Daily Report</h2>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div><label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Day</label>
+                    <select value={selectedDay} onChange={e=>setSelectedDay(Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-medium bg-gray-50">
+                      {Array.from({length:daysInSelectedMonth},(_,i)=>i+1).map(d=><option key={d} value={d}>{d}</option>)}
+                    </select></div>
+                  <div><label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Month</label>
+                    <select value={selectedMonth} onChange={e=>setSelectedMonth(Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-medium bg-gray-50">
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=><option key={m} value={i}>{m}</option>)}
+                    </select></div>
+                  <div><label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Year</label>
+                    <select value={selectedYear} onChange={e=>setSelectedYear(Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-medium bg-gray-50">
+                      {yearOptions.map(y=><option key={y} value={y}>{y}</option>)}
+                    </select></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100"><div className="text-[10px] font-bold text-gray-500 uppercase mb-1">Orders</div><div className="text-2xl font-extrabold text-gray-900">{selectedStats.count}</div></div>
+                  <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Revenue</div><div className="text-2xl font-extrabold text-emerald-700">{rupee}{Math.round(selectedStats.revenue).toLocaleString('en-IN')}</div></div>
                 </div>
               </div>
             </div>
           </motion.div>
         )}
-
         {activeTab === 'orders' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              {/* Order Status Filters */}
-              <div className="flex flex-wrap gap-2">
-                {(["all", "pending", "paid", "delivered", "cancelled"] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setOrderFilter(status)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold capitalize border transition-all ${
-                      orderFilter === status 
-                        ? "bg-gray-900 border-gray-900 text-white" 
-                        : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-              
+            {/* Toolbar */}
+            <div className="mb-4 space-y-3">
               <div className="flex items-center gap-2">
-                {/* Dev Mock Buttons */}
-                <div className="hidden sm:flex items-center gap-1 mr-2 border-r border-gray-200 pr-4">
-                  <span className="text-[10px] text-gray-400 font-bold uppercase mr-1">Simulate:</span>
-                  {(["A", "B", "C", "D"] as const).map((key) => (
-                    <button key={key} onClick={() => createMockOrder(key)} disabled={activeMockKeys.has(key)} className="w-6 h-6 rounded bg-gray-100 text-gray-500 text-[10px] font-bold hover:bg-gray-200 transition-colors disabled:opacity-50">
-                      {key}
-                    </button>
+                <div className="relative flex-1">
+                  <input type="text" placeholder="Search name, area, order IDâ€¦" value={orderSearch} onChange={e=>setOrderSearch(e.target.value)}
+                    className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 font-medium"/>
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  {orderSearch&&<button onClick={()=>setOrderSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-700"><X size={12}/></button>}
+                </div>
+                <button onClick={()=>{if(selectedOrderIds.size===filteredOrders.length&&filteredOrders.length>0)setSelectedOrderIds(new Set());else setSelectedOrderIds(new Set(filteredOrders.map(o=>o.id)));}} className="px-3 py-2 bg-white border border-gray-200 text-xs font-semibold rounded-lg hover:bg-gray-50 flex items-center gap-1.5 shrink-0">
+                  {selectedOrderIds.size===filteredOrders.length&&filteredOrders.length>0?<CheckSquare size={13} className="text-gray-900"/>:<Square size={13}/>}
+                  <span className="hidden sm:inline">All</span>
+                </button>
+                <div className="hidden sm:flex items-center gap-1">
+                  {(['A','B','C','D'] as const).map(k=>(
+                    <button key={k} onClick={()=>createMockOrder(k)} disabled={activeMockKeys.has(k)} className="w-6 h-6 rounded bg-gray-100 text-gray-500 text-[10px] font-bold hover:bg-gray-200 disabled:opacity-40">{k}</button>
                   ))}
                 </div>
-                <button
-                  onClick={() => {
-                    if (selectedOrderIds.size === filteredOrders.length && filteredOrders.length > 0) {
-                      setSelectedOrderIds(new Set());
-                    } else {
-                      setSelectedOrderIds(new Set(filteredOrders.map(o => o.id)));
-                    }
-                  }}
-                  className="px-3 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
-                >
-                  {selectedOrderIds.size === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare size={14} className="text-gray-900" /> : <Square size={14} />}
-                  Select All
+                <button onClick={refreshAll} disabled={isRefreshing} className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50" title="Refresh">
+                  <RotateCcw size={14} className={isRefreshing?'animate-spin text-gray-700':'text-gray-400'}/>
                 </button>
+              </div>
+              {/* Status pills with live counts */}
+              <div className="flex gap-1.5 flex-wrap">
+                {(['all','pending','paid','preparing','out-for-delivery','delivered','cancelled'] as const).map(s=>{
+                  const cnt=s==='all'?displayOrders.length:displayOrders.filter(o=>(o.orderStatus||o.status||'pending')===s).length;
+                  return(
+                    <button key={s} onClick={()=>setOrderFilter(s as any)}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border transition-all flex items-center gap-1 ${
+                        orderFilter===s?'bg-gray-900 border-gray-900 text-white':'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
+                      }`}>
+                      {s.replace(/-/g,' ')}
+                      {cnt>0&&<span className={`text-[9px] font-extrabold ${orderFilter===s?'text-white/60':'text-gray-400'}`}>{cnt}</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {displayOrders.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
-                <p className="text-gray-500 font-medium text-sm">No orders found.</p>
+            {filteredOrders.length===0?(
+              <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
+                <Package size={28} className="mx-auto text-gray-200 mb-2"/>
+                <p className="text-gray-400 text-sm">{orderSearch?'No orders match your search.':'No orders here.'}</p>
               </div>
-            ) : (
-              <div className="grid gap-3 pb-24">
-                {filteredOrders.map((order) => {
-                    const status = order.orderStatus || order.status || 'pending';
-                    const source = getPaymentSource(order.paymentId);
-                    const isSelected = selectedOrderIds.has(order.id);
-                    return (
-                    <div
-                      key={order.id}
-                      className={`bg-white border ${isSelected ? 'border-gray-900 shadow-md ring-1 ring-gray-900' : 'border-gray-200 hover:shadow-md'} rounded-xl overflow-hidden shadow-sm transition-all group flex flex-col sm:flex-row`}
-                    >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOrderIds(prev => {
-                            const next = new Set(prev);
-                            if (next.has(order.id)) next.delete(order.id);
-                            else next.add(order.id);
-                            return next;
-                          });
-                        }}
-                        className={`flex items-center justify-center p-4 sm:p-5 border-b sm:border-b-0 sm:border-r ${isSelected ? 'bg-gray-50 border-gray-900/10' : 'bg-white border-gray-100'} hover:bg-gray-50 transition-colors shrink-0`}
-                      >
-                        {isSelected ? <CheckSquare size={18} className="text-gray-900" /> : <Square size={18} className="text-gray-300" />}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOrder(order)}
-                        className="flex-1 text-left p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-xs font-mono font-bold text-gray-400">#{order.id.slice(-6).toUpperCase()}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                              status === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
-                              status === 'cancelled' ? 'bg-red-50 text-red-700' :
-                              status === 'out-for-delivery' ? 'bg-blue-50 text-blue-700' :
-                              'bg-amber-50 text-amber-700'
-                            }`}>
-                              {status.replace(/-/g, ' ')}
-                            </span>
-                            {source === 'whatsapp' ? (
-                              <MessageCircle size={14} className="text-green-500" />
-                            ) : source === 'cod' ? (
-                              <Banknote size={14} className="text-orange-500" />
-                            ) : (
-                              <CreditCard size={14} className="text-blue-500" />
-                            )}
-                          </div>
-                          <div className="text-sm font-bold text-gray-900 mb-0.5">
-                            {order.address?.name || "Customer"}
-                          </div>
-                          <div className="text-xs text-gray-500 font-medium">
-                            {order.address?.area || "Area"} • {order.items?.length || 0} items
-                          </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center">
-                          <div className="text-base font-bold text-gray-900">{rupee}{order.total}</div>
-                          <div className={`text-[10px] font-bold uppercase ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            {order.paymentStatus || 'unpaid'}
-                          </div>
-                        </div>
-                      </button>
-                      <div className="border-t sm:border-t-0 sm:border-l border-gray-100 bg-gray-50 flex sm:flex-col shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="flex-1 sm:flex-none p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
-                          title="Delete Order"
-                        >
-                          <Trash2 size={16} />
+            ):(
+              <div className="space-y-2 pb-28">
+                {filteredOrders.map(order=>{
+                  const status=order.orderStatus||order.status||'pending';
+                  const source=getPaymentSource(order.paymentId);
+                  const isSelected=selectedOrderIds.has(order.id);
+                  const PIPE=['pending','preparing','out-for-delivery','delivered'];
+                  const pIdx=PIPE.indexOf(status==='cancelled'?'pending':status);
+                  const sBadge:Record<string,string>={pending:'bg-amber-50 text-amber-700 border-amber-200',preparing:'bg-blue-50 text-blue-700 border-blue-200','out-for-delivery':'bg-indigo-50 text-indigo-700 border-indigo-200',delivered:'bg-emerald-50 text-emerald-700 border-emerald-200',cancelled:'bg-red-50 text-red-600 border-red-100',paid:'bg-teal-50 text-teal-700 border-teal-200'};
+                  return(
+                    <div key={order.id} className={`bg-white border rounded-xl overflow-hidden shadow-sm transition-all ${isSelected?'border-gray-900 ring-1 ring-gray-900':'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}>
+                      <div className="flex items-stretch">
+                        <button onClick={e=>{e.stopPropagation();setSelectedOrderIds(prev=>{const n=new Set(prev);n.has(order.id)?n.delete(order.id):n.add(order.id);return n;})}} className={`flex items-center justify-center px-3 border-r shrink-0 ${isSelected?'bg-gray-50 border-gray-900/20':'border-gray-100 hover:bg-gray-50'}`}>
+                          {isSelected?<CheckSquare size={15} className="text-gray-900"/>:<Square size={15} className="text-gray-300"/>}
                         </button>
+                        <button type="button" onClick={()=>setSelectedOrder(order)} className="flex-1 text-left px-4 py-3 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-mono font-bold text-gray-400">#{order.id.slice(-6).toUpperCase()}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider border ${sBadge[status]||sBadge.pending}`}>{status.replace(/-/g,' ')}</span>
+                            {source==='whatsapp'?<MessageCircle size={12} className="text-green-500"/>:source==='cod'?<Banknote size={12} className="text-orange-500"/>:<CreditCard size={12} className="text-blue-400"/>}
+                            {order.paymentStatus==='paid'&&<span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">PAID</span>}
+                          </div>
+                          <div className="font-bold text-sm text-gray-900">{order.address?.name||'Customer'}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{order.address?.area||'â€”'} Â· {order.deliverySlot||'No slot'} Â· {order.items?.length||0} items</div>
+                          {status!=='cancelled'&&(
+                            <div className="flex items-center gap-1 mt-2">
+                              {PIPE.map((step,i)=>(
+                                <div key={step} className="flex items-center gap-1">
+                                  <div className={`w-2 h-2 rounded-full ${i<=pIdx?'bg-gray-900':'bg-gray-200'}`}/>
+                                  {i<PIPE.length-1&&<div className={`w-4 h-px ${i<pIdx?'bg-gray-900':'bg-gray-200'}`}/>}
+                                </div>
+                              ))}
+                              <span className="text-[9px] text-gray-400 ml-1 capitalize">{PIPE[pIdx]?.replace(/-/g,' ')}</span>
+                            </div>
+                          )}
+                        </button>
+                        <div className="shrink-0 px-4 flex flex-col items-end justify-center border-l border-gray-100">
+                          <div className="text-sm font-extrabold text-gray-900 font-mono">{rupee}{order.total}</div>
+                          <div className={`text-[9px] font-bold uppercase mt-0.5 ${order.paymentStatus==='paid'?'text-emerald-500':'text-amber-500'}`}>{order.paymentStatus||'unpaid'}</div>
+                        </div>
+                        <div className="shrink-0 flex flex-col border-l border-gray-100">
+                          {status==='pending'&&<button onClick={e=>{e.stopPropagation();updateDoc(doc(db,'orders',order.id),{orderStatus:'preparing',updatedAt:Date.now()});}} className="flex-1 px-3 text-[10px] font-extrabold uppercase text-blue-600 hover:bg-blue-50 transition-colors">PREP</button>}
+                          {(status==='preparing'||status==='paid')&&<button onClick={e=>{e.stopPropagation();updateDoc(doc(db,'orders',order.id),{orderStatus:'out-for-delivery',updatedAt:Date.now()});}} className="flex-1 px-3 text-[10px] font-extrabold uppercase text-indigo-600 hover:bg-indigo-50 transition-colors">SHIP</button>}
+                          {status==='out-for-delivery'&&<button onClick={e=>{e.stopPropagation();updateDoc(doc(db,'orders',order.id),{orderStatus:'delivered',paymentStatus:'paid',updatedAt:Date.now()});}} className="flex-1 px-3 text-[10px] font-extrabold uppercase text-emerald-600 hover:bg-emerald-50 transition-colors">DONE</button>}
+                          {status==='delivered'&&<div className="flex-1 px-3 flex items-center justify-center text-emerald-300"><Star size={11} fill="currentColor"/></div>}
+                          <div className="h-px bg-gray-100"/>
+                          <button onClick={()=>handleDeleteOrder(order.id)} className="px-3 py-2 text-gray-200 hover:text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center"><Trash2 size={13}/></button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            
+
             <AnimatePresence>
-              {selectedOrderIds.size > 0 && activeTab === 'orders' && (
-                <motion.div
-                  initial={{ y: 100, opacity: 0, x: '-50%' }}
-                  animate={{ y: 0, opacity: 1, x: '-50%' }}
-                  exit={{ y: 100, opacity: 0, x: '-50%' }}
-                  className="fixed bottom-6 left-1/2 z-[90] bg-gray-900 text-white px-3 py-2 sm:px-4 sm:py-3 rounded-2xl shadow-2xl flex items-center gap-2 sm:gap-4 border border-gray-700 w-[95%] sm:w-auto overflow-x-auto [&::-webkit-scrollbar]:hidden"
-                >
-                  <div className="flex items-center gap-2 shrink-0 pr-2">
-                    <span className="bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">{selectedOrderIds.size}</span>
-                    <span className="text-sm font-semibold tracking-wide hidden sm:inline-block">Selected</span>
+              {selectedOrderIds.size>0&&activeTab==='orders'&&(
+                <motion.div initial={{y:100,opacity:0,x:'-50%'}} animate={{y:0,opacity:1,x:'-50%'}} exit={{y:100,opacity:0,x:'-50%'}}
+                  className="fixed bottom-6 left-1/2 z-[90] bg-gray-950 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-800 w-[95%] sm:w-auto">
+                  <span className="bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold">{selectedOrderIds.size}</span>
+                  <div className="h-4 w-px bg-gray-700"/>
+                  <div className="flex gap-2">
+                    {[{label:'Prepare',s:'preparing'},{label:'Dispatch',s:'out-for-delivery'},{label:'Deliver âœ“',s:'delivered'}].map(({label,s})=>(
+                      <button key={s} onClick={()=>handleBulkStatusUpdate(s)} disabled={isSavingOrder}
+                        className="px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-all disabled:opacity-50">{label}</button>
+                    ))}
                   </div>
-                  <div className="h-5 w-px bg-gray-700 shrink-0 hidden sm:block"></div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => handleBulkStatusUpdate('preparing')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 disabled:opacity-50">Prep</button>
-                    <button onClick={() => handleBulkStatusUpdate('out-for-delivery')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 disabled:opacity-50">Dispatch</button>
-                    <button onClick={() => handleBulkStatusUpdate('delivered')} disabled={isSavingOrder} className="px-3 py-2 sm:py-1.5 text-xs font-bold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700 text-emerald-400 border-emerald-900/30 disabled:opacity-50">Deliver</button>
-                  </div>
+                  <button onClick={()=>setSelectedOrderIds(new Set())} className="ml-1 text-gray-500 hover:text-white"><X size={14}/></button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1157,125 +1250,203 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         )}
 
         {activeTab === 'menu' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Product Management Form */}
-            <div className="lg:col-span-4 bg-white border border-gray-200 rounded-xl shadow-sm p-5 lg:sticky lg:top-24">
-              <div className="mb-5 pb-3 border-b border-gray-100">
-                <h2 className="text-base font-bold text-gray-900 tracking-tight">{editingMenuId ? "Edit Catalog Item" : "Add Catalog Item"}</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Manage your product inventory and pricing.</p>
-              </div>
-              <form onSubmit={handleSaveMenu} className="space-y-5">
-                {/* Image URL & Live Preview */}
-                <div className="flex gap-4">
-                  <div className="h-16 w-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shadow-inner">
-                    {image ? (
-                      <img src={image} alt="Preview" className="h-full w-full object-cover mix-blend-multiply" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                    ) : (
-                      <span className="text-[10px] text-gray-400 font-medium text-center leading-tight px-1">No img</span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Image URL</label>
-                    <input required value={image} onChange={e => setImage(e.target.value)} placeholder="https://..." className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6" />
-                  </div>
-                </div>
-
-                {/* Name & Category */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Product Name</label>
-                  <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Citrus Blast" className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                  <select value={category} onChange={(e) => setCategory(e.target.value as "Signature Blends" | "Single Fruit Series")} className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6 bg-white">
-                    <option value="Signature Blends">Signature Blends</option>
-                    <option value="Single Fruit Series">Single Fruit Series</option>
-                  </select>
-                </div>
-
-                {/* Pricing Group */}
-                <div className="grid grid-cols-2 gap-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col lg:flex-row gap-8 items-start">
+            {/* Pro Product Editor Panel */}
+            <div className="w-full lg:w-[420px] shrink-0">
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden lg:sticky lg:top-24">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">MRP</label>
-                    <div className="relative rounded-md shadow-sm">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 sm:text-sm">{rupee}</span>
-                      </div>
-                      <input required type="number" min="0" value={mrp} onChange={e => setMrp(e.target.value)} className="block w-full rounded-md border-0 py-1.5 pl-7 pr-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6 font-mono" />
-                    </div>
+                    <h2 className="text-sm font-bold text-gray-900 tracking-tight">{editingMenuId ? "Edit Product" : "New Product"}</h2>
+                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">{editingMenuId ? "Updating existing item" : "Create catalog entry"}</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Offer Price</label>
-                    <div className="relative rounded-md shadow-sm">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 sm:text-sm">{rupee}</span>
-                      </div>
-                      <input required type="number" min="0" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} className="block w-full rounded-md border-0 py-1.5 pl-7 pr-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6 font-mono" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Ingredients / Description</label>
-                  <textarea required value={desc} onChange={e => setDesc(e.target.value)} placeholder="Orange, Lemon, Mint..." rows={3} className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm sm:leading-6 resize-none" />
-                </div>
-
-                {/* Actions */}
-                <div className="pt-2 flex gap-3">
-                  <button type="submit" className="flex-1 rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 transition-all">
-                    {editingMenuId ? "Save Changes" : "Create Product"}
-                  </button>
                   {editingMenuId && (
-                    <button type="button" onClick={resetMenuForm} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all">
-                      Cancel
+                    <button onClick={resetMenuForm} className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-all">
+                      <X size={16} />
                     </button>
                   )}
                 </div>
-              </form>
+
+                <div className="p-6">
+                  <form onSubmit={handleSaveMenu} className="space-y-6">
+                    {/* Media Management Area */}
+                    <div className="space-y-3">
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Product Media</label>
+                      <div className="relative group">
+                        <div className="aspect-square w-full rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex flex-col items-center justify-center transition-all group-hover:border-gray-300 group-hover:bg-gray-100/50">
+                          {image ? (
+                            <>
+                              <img src={image} alt="Preview" className="h-full w-full object-cover mix-blend-multiply" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-white text-gray-900 px-4 py-2 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-all">Change Photo</button>
+                              </div>
+                            </>
+                          ) : (
+                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-3 text-gray-400 hover:text-gray-600 transition-colors">
+                              <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center border border-gray-100">
+                                <Upload size={20} />
+                              </div>
+                              <span className="text-xs font-bold">Upload Product Image</span>
+                              <span className="text-[10px] opacity-60">PNG, JPG up to 5MB</span>
+                            </button>
+                          )}
+                          
+                          {isUploading && (
+                            <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center p-6 text-center">
+                              <Loader2 size={32} className="text-gray-900 animate-spin mb-3" />
+                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} className="h-full bg-black rounded-full" />
+                              </div>
+                              <span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">Uploading {uploadProgress}%</span>
+                            </div>
+                          )}
+                        </div>
+                        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                         <div className="h-px bg-gray-100 flex-1"></div>
+                         <span className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">Or URL</span>
+                         <div className="h-px bg-gray-100 flex-1"></div>
+                      </div>
+                      <input value={image} onChange={e => setImage(e.target.value)} placeholder="https://external-image-url.com/..." className="w-full text-xs py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 placeholder:text-gray-300" />
+                    </div>
+
+                    {/* Basic Info */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Product Identity</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Citrus Blast)" className="w-full text-sm font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300" />
+                      </div>
+                      <div>
+                        <select value={category} onChange={(e) => setCategory(e.target.value as any)} className="w-full text-xs font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10">
+                          <option value="Signature Blends">Signature Blends</option>
+                          <option value="Single Fruit Series">Single Fruit Series</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Financials / Discounts */}
+                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">MRP ({rupee})</label>
+                          <input type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Discount %</label>
+                          <div className="relative">
+                            <input type="number" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 pr-7" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">%</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200/50">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Final Price</span>
+                        <span className="text-xl font-black text-emerald-600 font-mono tracking-tighter">{rupee}{offerPrice}</span>
+                      </div>
+                    </div>
+
+                    {/* Product Details */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Description & Ingredients</label>
+                      <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Enter product highlights..." rows={3} className="w-full text-xs font-medium py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300 resize-none" />
+                    </div>
+
+                    <button type="submit" disabled={isUploading} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-black hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {isUploading ? <Loader2 className="animate-spin" size={16} /> : (editingMenuId ? <CheckCircle2 size={16} /> : <Package size={16} />)}
+                      {editingMenuId ? "Commit Changes" : "Deploy to Catalog"}
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
 
-            {/* Catalog List */}
-            <div className="lg:col-span-8 space-y-3">
+            {/* Catalog Grid View */}
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                   <h2 className="text-lg font-bold text-gray-900">Live Catalog</h2>
+                   <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-500 rounded-full border border-gray-200">{items.length} Items</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setIsRefreshing(true)} className={`p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
+                    <RotateCcw size={16} />
+                  </button>
+                </div>
+              </div>
+
               {loading ? (
-                <div className="text-center py-10 bg-white rounded-xl border border-gray-200"><p className="text-gray-500 text-sm">Loading catalog...</p></div>
-              ) : menuError ? (
-                <div className="text-center py-10 bg-red-50 rounded-xl border border-red-200"><p className="text-red-600 text-sm font-medium">{menuError}</p></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1,2,3,4,5,6].map(i => (
+                    <div key={i} className="bg-white border border-gray-100 rounded-2xl h-[340px] animate-pulse" />
+                  ))}
+                </div>
               ) : items.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
-                  <p className="text-gray-500 text-sm mb-4">No products in catalog.</p>
-                  <button onClick={handleSeedMenu} disabled={isSeeding} className="px-4 py-2 bg-gray-100 text-gray-900 text-xs font-bold rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors disabled:opacity-50">
+                <div className="text-center py-24 bg-white rounded-3xl border border-gray-200 border-dashed">
+                  <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-gray-100">
+                    <Package size={24} className="text-gray-300" />
+                  </div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-1">Catalog Empty</h3>
+                  <p className="text-xs text-gray-500 mb-6">Start by creating your first product or seeding defaults.</p>
+                  <button onClick={handleSeedMenu} disabled={isSeeding} className="px-6 py-2.5 bg-gray-900 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-black transition-all">
                     {isSeeding ? "Seeding..." : "Seed Default Menu"}
                   </button>
                 </div>
               ) : (
-                items.map((item) => (
-                  <div key={item.id} className={`bg-white border ${item.isArchived ? 'border-red-100 bg-gray-50 opacity-75' : 'border-gray-200'} rounded-lg p-3 flex items-center gap-4 hover:border-gray-300 transition-all shadow-sm`}>
-                    <div className={`w-12 h-12 rounded-md overflow-hidden shrink-0 border border-gray-100 ${item.isArchived ? 'grayscale' : 'bg-gray-50'}`}>
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" referrerPolicy="no-referrer" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className={`text-sm font-bold truncate ${item.isArchived ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{item.name}</h3>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold uppercase tracking-wider shrink-0">{item.category === "Signature Blends" ? "Blend" : "Pure"}</span>
-                        {item.isArchived && <span className="text-[9px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-semibold uppercase tracking-wider shrink-0">Archived</span>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {items.map((item) => {
+                    const discount = Math.round(((item.mrp - (item.offerPrice ?? item.price)) / item.mrp) * 100);
+                    return (
+                      <div key={item.id} className={`group bg-white border ${item.isArchived ? 'border-red-50 opacity-75 grayscale-[0.5]' : 'border-gray-100 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'} rounded-2xl overflow-hidden transition-all duration-300 flex flex-col`}>
+                        {/* Card Media */}
+                        <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
+                          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                            <span className={`px-2 py-0.5 ${item.category === "Signature Blends" ? 'bg-black text-white' : 'bg-emerald-500 text-white'} text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit`}>
+                              {item.category === "Signature Blends" ? "Blend" : "Pure"}
+                            </span>
+                            {item.isArchived && (
+                              <span className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit">Archived</span>
+                            )}
+                          </div>
+                          {discount > 0 && !item.isArchived && (
+                            <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg">
+                              -{discount}%
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+
+                        {/* Card Content */}
+                        <div className="p-5 flex-1 flex flex-col">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                             <h3 className="text-sm font-black text-gray-900 leading-tight group-hover:text-black transition-colors">{item.name}</h3>
+                             <div className="flex gap-1 shrink-0 -mt-1 -mr-1">
+                                <button onClick={() => handleEditClick(item)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                                   <Pencil size={14} />
+                                </button>
+                                <button onClick={() => handleToggleArchiveMenu(item.id, !!item.isArchived)} className={`p-2 ${item.isArchived ? 'text-emerald-500' : 'text-gray-400 hover:text-red-600'} hover:bg-gray-100 rounded-lg transition-all opacity-0 group-hover:opacity-100 overflow-hidden`}>
+                                   {item.isArchived ? <RotateCcw size={14} /> : <Trash2 size={14} />}
+                                </button>
+                             </div>
+                          </div>
+                          <p className="text-[11px] text-gray-500 font-medium line-clamp-2 mb-4 leading-relaxed flex-1">{item.desc}</p>
+                          
+                          <div className="pt-4 border-t border-gray-50 flex items-end justify-between">
+                            <div className="flex flex-col">
+                              {item.mrp > (item.offerPrice ?? item.price) && (
+                                <span className="text-[10px] text-gray-400 line-through font-mono">{rupee}{item.mrp}</span>
+                              )}
+                              <span className="text-lg font-black text-gray-900 font-mono tracking-tighter">{rupee}{item.offerPrice ?? item.price}</span>
+                            </div>
+                            <div className="text-[10px] font-bold text-gray-300 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded">
+                               v.1.0
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 truncate">{item.desc}</div>
-                    </div>
-                    <div className="text-right shrink-0 px-4">
-                      <div className={`text-sm font-bold ${item.isArchived ? 'text-gray-500' : 'text-gray-900'}`}>{rupee}{item.offerPrice ?? item.price}</div>
-                      {item.mrp && <div className="text-[10px] text-gray-400 line-through">{rupee}{item.mrp}</div>}
-                    </div>
-                    <div className="flex flex-col gap-1 border-l border-gray-100 pl-3 shrink-0">
-                      <button onClick={() => handleEditClick(item)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => handleToggleArchiveMenu(item.id, !!item.isArchived)} className={`p-1.5 rounded transition-colors ${item.isArchived ? 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'}`} title={item.isArchived ? "Restore to Menu" : "Archive (Hide)"}>
-                        {item.isArchived ? <RotateCcw size={14} /> : <Trash2 size={14} />}
-                      </button>
-                    </div>
-                  </div>
-                ))
+                    );
+                  })}
+                </div>
               )}
             </div>
           </motion.div>

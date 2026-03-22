@@ -17,9 +17,17 @@ export const getMrp = (item: Partial<Product> | Partial<SubscriptionProduct>): n
 export const getOfferPrice = (item: Partial<Product> | Partial<SubscriptionProduct>): number => {
   // For subscriptions, use the offer price directly
   if (item.id === 'sub_weekly' || item.id === 'sub_monthly') {
-    return item.offerPrice ?? item.mrp ?? 0;
+    return Number(item.offerPrice ?? item.mrp ?? 0);
   }
+  
   const mrp = getMrp(item);
-  const rawOffer = Number((item as Product).offerPrice ?? (mrp * 0.75));
+  
+  // If we have an explicit offerPrice from the Admin Dashboard, use it exactly
+  if (item.offerPrice !== undefined && item.offerPrice !== null && Number(item.offerPrice) > 0) {
+    return Number(item.offerPrice);
+  }
+
+  // Fallback to legacy 25% off logic with charm pricing for older items
+  const rawOffer = mrp * 0.75;
   return roundUpTo9(rawOffer);
 };

@@ -449,49 +449,103 @@ export default function App() {
   };
 
   // --- NATIVE MOBILE "BACK BUTTON" INTERCEPTORS ---
+  // Shared: save scroll position before opening any modal
+  const savedScrollY = useRef(0);
+
   useEffect(() => {
     if (isAdminOpen) {
+      savedScrollY.current = window.scrollY;
+      sessionStorage.setItem('simplysip_scrollY', String(window.scrollY));
       window.history.pushState({ modal: 'admin' }, '');
       const handlePopState = () => setIsAdminOpen(false);
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'admin') window.history.back();
+        // Restore scroll position after admin closes
+        const saved = Number(sessionStorage.getItem('simplysip_scrollY') || '0');
+        requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
       };
     }
   }, [isAdminOpen]);
 
   useEffect(() => {
     if (isCheckoutOpen) {
+      savedScrollY.current = window.scrollY;
+      sessionStorage.setItem('simplysip_scrollY', String(window.scrollY));
       window.history.pushState({ modal: 'checkout' }, '');
       const handlePopState = () => setIsCheckoutOpen(false);
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'checkout') window.history.back();
+        const saved = Number(sessionStorage.getItem('simplysip_scrollY') || '0');
+        requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
       };
     }
   }, [isCheckoutOpen]);
 
   useEffect(() => {
     if (isProfileOpen) {
+      savedScrollY.current = window.scrollY;
+      sessionStorage.setItem('simplysip_scrollY', String(window.scrollY));
       window.history.pushState({ modal: 'profile' }, '');
       const handlePopState = () => setIsProfileOpen(false);
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'profile') window.history.back();
+        const saved = Number(sessionStorage.getItem('simplysip_scrollY') || '0');
+        requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
       };
     }
   }, [isProfileOpen]);
 
   useEffect(() => {
     if (isAuthOpen) {
+      savedScrollY.current = window.scrollY;
+      sessionStorage.setItem('simplysip_scrollY', String(window.scrollY));
       window.history.pushState({ modal: 'auth' }, '');
       const handlePopState = () => setIsAuthOpen(false);
       window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'auth') window.history.back();
+        const saved = Number(sessionStorage.getItem('simplysip_scrollY') || '0');
+        requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
       };
     }
   }, [isAuthOpen]);
+
+  useEffect(() => {
+    if (isPlanOpen) {
+      savedScrollY.current = window.scrollY;
+      sessionStorage.setItem('simplysip_scrollY', String(window.scrollY));
+      window.history.pushState({ modal: 'plan' }, '');
+      const handlePopState = () => setIsPlanOpen(false);
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        if (window.history.state?.modal === 'plan') window.history.back();
+        const saved = Number(sessionStorage.getItem('simplysip_scrollY') || '0');
+        requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
+      };
+    }
+  }, [isPlanOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isPlanOpen) setIsPlanOpen(false);
+        else if (isCheckoutOpen) setIsCheckoutOpen(false);
+        else if (isAdminOpen) setIsAdminOpen(false);
+        else if (isAuthOpen) setIsAuthOpen(false);
+        else if (isProfileOpen) setIsProfileOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlanOpen, isCheckoutOpen, isAdminOpen, isAuthOpen, isProfileOpen]);
 
   const displayOrders = useMemo(() => Array.from(
     new Map([...localUserOrders, ...userOrders].map((o) => [o.id, o])).values()

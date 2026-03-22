@@ -13,6 +13,7 @@ export interface Product {
   mrp: number;
   offerPrice: number;
   price: number;
+  discountPercent?: number;
   tagline: string;
   bestSeller: boolean;
   sweetness: number;

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿import { useEffect, useRef, useState } from 'react';
+﻿﻿﻿import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Star } from 'lucide-react';
@@ -147,7 +147,7 @@ function MenuCard({
           </h4>
           <div className="flex items-baseline justify-center gap-3 mt-2">
             <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-[#6F6A63] border border-black/10 rounded-full min-w-[72px] h-6 px-2 flex items-center justify-center">
-              25% Off
+              {product.discountPercent ? `${product.discountPercent}% Off` : "Special Offer"}
             </span>
             <span className="text-[11px] sm:text-sm text-[#A7A29C] line-through font-medium">
               {"\u20B9"}{product.mrp}
@@ -311,7 +311,7 @@ function ProductPanel({
                   )}
                   {product.mrp && (
                      <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded mb-1 ml-1">
-                       {Math.round(((product.mrp - product.offerPrice) / product.mrp) * 100)}% OFF
+                       {product.discountPercent || Math.round(((product.mrp - product.offerPrice) / product.mrp) * 100)}% OFF
                      </span>
                   )}
                 </div>
@@ -585,7 +585,7 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
         >
           <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">SIMPLY SIP</p>
           <h2 className="text-3xl sm:text-4xl md:text-6xl font-semibold tracking-tight mb-3 text-[#1D1C1A] font-display">Layered flavours and pure expression.</h2>
-          <p className="text-[11px] sm:text-xs uppercase tracking-[0.3em] text-[#6F6A63] font-medium">Flat 25% Off {"\u2014"} Limited Launch Offer</p>
+          <p className="text-[11px] sm:text-xs uppercase tracking-[0.3em] text-[#6F6A63] font-medium">Limited Launch Offer {"\u2014"} Grab yours now</p>
         </motion.div>
 
         <div className="sticky top-[70px] sm:top-[85px] z-40 bg-white/80 backdrop-blur-xl border-y border-black/5 py-4 px-4 sm:px-6 -mx-4 sm:mx-0 mb-8 sm:mb-12 flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
