@@ -121,19 +121,10 @@ export default function App() {
       if (currentUser) {
         setIsAuthOpen(false);
         
-        // Immediately set admin status synchronously to avoid database hangs
-        const email = currentUser.email?.toLowerCase().trim() || "";
-        const isEmailAdmin = email === "sumanthbolla97@gmail.com";
-        setIsAdmin(isEmailAdmin);
-
-        // Background check for Firestore admin badge
+        // Check Firestore admins collection for admin status
         getDoc(doc(db, "admins", currentUser.uid))
           .then((snap) => {
-            if (snap.exists()) {
-              setIsAdmin(true);
-            } else if (!isEmailAdmin) {
-              setIsAdmin(false);
-            }
+            setIsAdmin(snap.exists());
           })
           .catch((err: any) => {
             if (err.code === 'unavailable' || err.message?.includes('offline')) {

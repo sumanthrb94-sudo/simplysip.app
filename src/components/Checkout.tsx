@@ -460,7 +460,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const handlePaymentDone = async () => {
     setIsProcessingPayment(true);
     try {
-      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
+      const simulatedOrderId = crypto.randomUUID();
       const orderData = buildOrderPayload(`mock_pay_${Date.now()}`, "paid");
       await processOrder(simulatedOrderId, orderData, 'online');
     } catch (error) {
@@ -474,7 +474,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const handleCOD = async () => {
     setIsProcessingPayment(true);
     try {
-      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
+      const simulatedOrderId = crypto.randomUUID();
       const orderData = buildOrderPayload(`cod_${Date.now()}`, "unpaid", "Cash on Delivery");
       await processOrder(simulatedOrderId, orderData, 'cod');
     } catch (error) {
@@ -490,7 +490,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     const whatsappWindow = window.open('about:blank', '_blank');
 
     try {
-      const simulatedOrderId = `ord_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 5)}`;
+      const simulatedOrderId = crypto.randomUUID();
       const orderData = buildOrderPayload(`whatsapp_${Date.now()}`, "unpaid", "Ordered via WhatsApp");
       
       const itemsText = cartItems
