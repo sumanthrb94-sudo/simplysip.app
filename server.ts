@@ -185,6 +185,112 @@ app.post("/api/upload", authenticate, uploadLimiter, upload.single("image"), asy
   }
 });
 
+// ─── Payment Routes (Cashfree) ────────────────────────────────────────────────
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || "";
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || "";
+const CASHFREE_BASE_URL =
+  process.env.CASHFREE_ENV === "production"
+    ? "https://api.cashfree.com/pg"
+    : "https://sandbox.cashfree.com/pg";
+
+const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+
+app.post("/api/payment/create-order", authenticate, paymentLimiter, async (req, res) => {
+  if (!CASHFREE_APP_ID || !CASHFREE_SECRET_KEY) {
+    res.status(503).json({ error: "Payment gateway not configured" });
+    return;
+  }
+
+  const { orderId, amount, customerName, customerEmail, customerPhone } = req.body;
+
+  if (typeof orderId !== "string" || !orderId || orderId.length > 50) {
+    res.status(400).json({ error: "Invalid orderId" }); return;
+  }
+  if (typeof amount !== "number" || amount <= 0 || amount > 100000) {
+    res.status(400).json({ error: "Invalid amount" }); return;
+  }
+  if (typeof customerPhone !== "string" || !/^\d{10}$/.test(customerPhone)) {
+    res.status(400).json({ error: "Invalid phone number" }); return;
+  }
+
+  try {
+    const response = await fetch(`${CASHFREE_BASE_URL}/orders`, {
+      method: "POST",
+      headers: {
+        "x-api-version": "2023-08-01",
+        "x-client-id": CASHFREE_APP_ID,
+        "x-client-secret": CASHFREE_SECRET_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        order_amount: amount,
+        order_currency: "INR",
+        customer_details: {
+          customer_id: (req as any).user.uid,
+          customer_name: typeof customerName === "string" ? customerName.trim().slice(0, 100) : "Customer",
+          customer_email:
+            typeof customerEmail === "string" && customerEmail.includes("@")
+              ? customerEmail
+              : "customer@simplysip.app",
+          customer_phone: customerPhone,
+        },
+      }),
+    });
+
+    const data = await response.json() as any;
+
+    if (!response.ok) {
+      console.error("Cashfree create-order failed:", data);
+      res.status(502).json({ error: "Failed to create payment order" });
+      return;
+    }
+
+    res.json({ payment_session_id: data.payment_session_id, order_id: data.order_id });
+  } catch (err) {
+    console.error("Cashfree create-order error:", err);
+    res.status(500).json({ error: "Payment service error" });
+  }
+});
+
+app.post("/api/payment/verify", authenticate, paymentLimiter, async (req, res) => {
+  if (!CASHFREE_APP_ID || !CASHFREE_SECRET_KEY) {
+    res.status(503).json({ error: "Payment gateway not configured" }); return;
+  }
+
+  const { orderId } = req.body;
+  if (typeof orderId !== "string" || !orderId) {
+    res.status(400).json({ error: "Invalid orderId" }); return;
+  }
+
+  try {
+    const response = await fetch(`${CASHFREE_BASE_URL}/orders/${encodeURIComponent(orderId)}`, {
+      method: "GET",
+      headers: {
+        "x-api-version": "2023-08-01",
+        "x-client-id": CASHFREE_APP_ID,
+        "x-client-secret": CASHFREE_SECRET_KEY,
+      },
+    });
+
+    const data = await response.json() as any;
+
+    if (!response.ok) {
+      console.error("Cashfree verify failed:", data);
+      res.status(502).json({ error: "Failed to verify payment" });
+      return;
+    }
+
+    const isPaid = data.order_status === "PAID";
+    const paymentId = data.cf_order_id?.toString() || data.order_id;
+
+    res.json({ success: isPaid, paymentId, order_status: data.order_status });
+  } catch (err) {
+    console.error("Cashfree verify error:", err);
+    res.status(500).json({ error: "Payment verification error" });
+  }
+});
+
 // Auth routes
 app.post("/api/auth/google", authLimiter, async (req, res) => {
   const { credential } = req.body;

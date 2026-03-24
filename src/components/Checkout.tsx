@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Trash2, CreditCard, Banknote, MessageCircle, MapPin, Home, Briefcase, Navigation } from 'lucide-react';
 import { collection, addDoc, doc, setDoc, increment, writeBatch } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db, auth } from '../firebaseConfig';
 import { Product, SubscriptionProduct, Order, UserProfile } from '../types';
 import { getMrp, getOfferPrice } from '../pricing';
 
@@ -19,6 +19,21 @@ interface CheckoutProps {
   onOrderPlaced?: (order: Order) => void;
   onViewOrders?: () => void;
 }
+
+const CASHFREE_MODE = (import.meta.env.VITE_CASHFREE_ENV === "production") ? "production" : "sandbox";
+
+const loadCashfreeSDK = (): Promise<any> =>
+  new Promise((resolve, reject) => {
+    if ((window as any).Cashfree) {
+      resolve((window as any).Cashfree({ mode: CASHFREE_MODE }));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+    script.onload = () => resolve((window as any).Cashfree({ mode: CASHFREE_MODE }));
+    script.onerror = () => reject(new Error("Failed to load payment SDK"));
+    document.head.appendChild(script);
+  });
 
 const SERVICEABLE_ZONES = [
   { name: "Select Area", lat: 0, lng: 0 },
@@ -460,12 +475,75 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
   const handlePaymentDone = async () => {
     setIsProcessingPayment(true);
     try {
-      const simulatedOrderId = crypto.randomUUID();
-      const orderData = buildOrderPayload(`mock_pay_${Date.now()}`, "paid");
-      await processOrder(simulatedOrderId, orderData, 'online');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        alert("Please sign in to pay online.");
+        return;
+      }
+
+      const newOrderId = crypto.randomUUID();
+
+      // Step 1: Create Cashfree order session on backend
+      const createRes = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          orderId: newOrderId,
+          amount: grandTotal,
+          customerName: formData.name,
+          customerEmail: user?.email || "",
+          customerPhone: formData.phone,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const err = await createRes.json();
+        throw new Error(err.error || "Failed to initiate payment");
+      }
+
+      const { payment_session_id } = await createRes.json();
+
+      // Step 2: Open Cashfree checkout modal
+      const cashfree = await loadCashfreeSDK();
+      setIsProcessingPayment(false);
+
+      const result = await cashfree.checkout({
+        paymentSessionId: payment_session_id,
+        redirectTarget: "_modal",
+      });
+
+      if (result?.error) {
+        console.error("Cashfree checkout error:", result.error);
+        alert("Payment failed. Please try again.");
+        return;
+      }
+
+      setIsProcessingPayment(true);
+
+      // Step 3: Verify payment on backend
+      const freshToken = await auth.currentUser?.getIdToken();
+      const verifyRes = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${freshToken}` },
+        body: JSON.stringify({ orderId: newOrderId }),
+      });
+
+      if (!verifyRes.ok) {
+        throw new Error("Payment verification failed");
+      }
+
+      const { success, paymentId } = await verifyRes.json();
+
+      if (!success) {
+        alert("Payment could not be verified. If amount was deducted, please contact support with your order reference.");
+        return;
+      }
+
+      const orderData = buildOrderPayload(paymentId, "paid");
+      await processOrder(newOrderId, orderData, 'online');
     } catch (error) {
       console.error('Payment processing failed:', error);
-      alert('Failed to place order. Please try again.');
+      alert('Payment failed. Please try again.');
     } finally {
       setIsProcessingPayment(false);
     }
