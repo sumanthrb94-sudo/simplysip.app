@@ -41,3 +41,17 @@ jobs:
           projectId: simplysip-57db5
       - name: Deploy Firebase Functions
         run: npx firebase-tools deploy --only functions --project simplysip-57db5 --token "${{ secrets.FIREBASE_TOKEN }}"
+      - name: Grant Cloud Function public invocation
+        env:
+          SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SIMPLYSIP_57DB5 }}
+        run: |
+          echo "$SA_KEY" > /tmp/sa-key.json
+          gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          curl -s -X POST \
+            "https://cloudfunctions.googleapis.com/v1/projects/simplysip-57db5/locations/us-central1/functions/api:setIamPolicy" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"policy":{"bindings":[{"role":"roles/cloudfunctions.invoker","members":["allUsers"]}]}}'
+          rm -f /tmp/sa-key.json
+        continue-on-error: true
