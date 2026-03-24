@@ -497,8 +497,14 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
       });
 
       if (!createRes.ok) {
-        const err = await createRes.json();
-        throw new Error(err.error || "Failed to initiate payment");
+        let errorMsg = "Failed to initiate payment";
+        try {
+          const err = await createRes.json();
+          errorMsg = err.error || errorMsg;
+        } catch {
+          errorMsg = `Payment service error (${createRes.status})`;
+        }
+        throw new Error(errorMsg);
       }
 
       const { payment_session_id } = await createRes.json();

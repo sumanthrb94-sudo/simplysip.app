@@ -32,6 +32,7 @@ jobs:
           echo "CASHFREE_APP_ID=${{ secrets.CASHFREE_APP_ID }}" >> functions/.env
           echo "CASHFREE_SECRET_KEY=${{ secrets.CASHFREE_SECRET_KEY }}" >> functions/.env
           echo "CASHFREE_ENV=sandbox" >> functions/.env
+          echo "ALLOWED_ORIGINS=https://simplysip-57db5.web.app,https://simplysip-57db5.firebaseapp.com" >> functions/.env
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -40,3 +41,12 @@ jobs:
           projectId: simplysip-57db5
       - name: Deploy Firebase Functions
         run: npx firebase-tools deploy --only functions --project simplysip-57db5 --token "${{ secrets.FIREBASE_TOKEN }}"
+      - name: Grant Cloud Function public invocation
+        run: |
+          gcloud auth activate-service-account --key-file=<(echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SIMPLYSIP_57DB5 }}')
+          gcloud functions add-iam-policy-binding api \
+            --region=us-central1 \
+            --member=allUsers \
+            --role=roles/cloudfunctions.invoker \
+            --project=simplysip-57db5
+        continue-on-error: true
