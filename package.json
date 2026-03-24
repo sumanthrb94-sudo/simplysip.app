@@ -13,6 +13,7 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "setup-admin": "node scripts/setup-admin.js",
+    "add-admins": "node scripts/add-admins-batch.js",
     "deploy-firebase": "firebase deploy --only database"
   },
   "engines": {
