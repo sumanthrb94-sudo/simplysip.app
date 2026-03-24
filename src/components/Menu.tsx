@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Star } from 'lucide-react';
@@ -142,8 +142,9 @@ function MenuCard({
           />
           {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
-              <div className="bg-white/90 px-4 py-2 rounded-xl shadow-lg border border-black/5 transform -rotate-12">
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-[#1D1C1A]">Sold Out</span>
+              <div className="bg-white/95 px-4 py-3 rounded-2xl shadow-xl border border-black/5 transform -rotate-2 max-w-[80%] text-center">
+                <span className="text-[10px] font-black uppercase tracking-tight text-[#1D1C1A] leading-tight block">Preparing new batch!</span>
+                <span className="text-[8px] font-medium text-gray-500 block mt-1">High demand for this blend 🥤</span>
               </div>
             </div>
           )}
@@ -198,7 +199,7 @@ function MenuCard({
             onClick={(e) => { e.stopPropagation(); onIncrement(product); }}
             className={`h-9 px-6 rounded-full border-2 border-[#1D1C1A] text-[11px] font-bold tracking-[0.15em] uppercase transition-colors ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50' : 'text-[#1D1C1A] hover:bg-[#1D1C1A] hover:text-white'}`}
           >
-            {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Out of Stock' : 'Add to Cart'}
+            {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Preparing Batch' : 'Add to Cart'}
           </button>
         )}
       </div>
@@ -411,7 +412,7 @@ function ProductPanel({
                       onClick={() => onIncrement(product)}
                       className={`w-full h-12 rounded-xl text-sm font-bold tracking-wide transition-colors shadow-sm ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                     >
-                      {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Sold Out' : 'Add to Cart'}
+                      {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Preparing Batch' : 'Add to Cart'}
                     </button>
                   )}
                 </div>

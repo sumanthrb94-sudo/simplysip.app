@@ -908,6 +908,16 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     }
   };
 
+  const handleRestoreStock = async (id: string, name: string) => {
+    try {
+      await updateDoc(doc(db, "menu", id), { inStock: true, inventory: 100, updatedAt: Date.now() });
+      showMenuToast('success', `"${name}" is back in stock!`);
+    } catch (err: any) {
+      console.error("Failed to restore stock:", err);
+      showMenuToast('error', `Failed to restore ${name}`);
+    }
+  };
+
   const handleDeleteOrder = async (id: string) => {
     try {
       await deleteDoc(doc(db, "orders", id));
@@ -1790,15 +1800,25 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                              <h3 className="text-sm font-black text-gray-900 leading-tight group-hover:text-black transition-colors">{item.name}</h3>
                              <div className="flex gap-1 shrink-0 -mt-1 -mr-1">
                                 {(item.inStock === false || item.inventory <= 0) && (
-                                   <div className="px-2 py-1 bg-red-100 border border-red-200 rounded-lg flex items-center gap-1.5 mr-1">
-                                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                                      <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Out of Stock</span>
+                                   <div className="flex items-center gap-1.5 mr-1">
+                                      <div className="px-2 py-1 bg-red-100 border border-red-200 rounded-lg flex items-center gap-1.5 shadow-sm">
+                                         <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                                         <span className="text-[8px] font-black text-red-600 uppercase tracking-tighter">Sold Out</span>
+                                      </div>
+                                      <button 
+                                        type="button" 
+                                        onClick={(e) => { e.stopPropagation(); handleRestoreStock(item.id, item.name); }}
+                                        className="px-2 py-1 bg-gray-900 text-white border border-gray-800 rounded-lg flex items-center gap-1 hover:bg-black transition-all shadow-md active:scale-95"
+                                      >
+                                         <RotateCcw size={10} className="text-white" />
+                                         <span className="text-[8px] font-black uppercase tracking-tighter">Restore</span>
+                                      </button>
                                    </div>
                                 )}
-                                <button onClick={() => handleEditClick(item)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                                <button onClick={() => handleEditClick(item)} className="p-2 text-black hover:bg-gray-100 rounded-lg transition-all">
                                    <Pencil size={14} />
                                 </button>
-                                <button onClick={() => handleToggleArchiveMenu(item.id, !!item.isArchived)} className={`p-2 ${item.isArchived ? 'text-emerald-500' : 'text-gray-400 hover:text-red-600'} hover:bg-gray-100 rounded-lg transition-all opacity-0 group-hover:opacity-100 overflow-hidden`}>
+                                <button onClick={() => handleToggleArchiveMenu(item.id, !!item.isArchived)} className={`p-2 ${item.isArchived ? 'text-black' : 'text-black'} hover:bg-gray-100 rounded-lg transition-all overflow-hidden`}>
                                    {item.isArchived ? <RotateCcw size={14} /> : <Trash2 size={14} />}
                                 </button>
                              </div>
