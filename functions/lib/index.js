@@ -1,18 +1,29 @@
 import * as functions from "firebase-functions";
 import express from "express";
-import admin from "firebase-admin";
+import admin from "firebase-admin"; // v2
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 admin.initializeApp();
 const db = admin.firestore();
 const app = express();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-    : ["https://simplysip.vercel.app"];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "https://simplysip.app")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
 app.use(cors({ origin: ALLOWED_ORIGINS, methods: ["GET", "POST", "DELETE"] }));
 app.use(express.json({ limit: "50kb" }));
+// Firebase Hosting rewrites pass the full path (e.g. /api/payment/create-order)
+// Strip the /api prefix so Express routes match correctly
+app.use((req, _res, next) => {
+    if (req.url.startsWith("/api/")) {
+        req.url = req.url.slice(4); // remove "/api"
+    }
+    next();
+});
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 const authenticate = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
@@ -30,6 +41,20 @@ const authenticate = async (req, res, next) => {
         return res.status(401).json({ error: "Unauthorized" });
     }
 };
+const checkAdmin = async (req, res, next) => {
+    const uid = req.user?.uid;
+    if (!uid)
+        return res.status(403).json({ error: "Forbidden" });
+    try {
+        const adminDoc = await db.collection("admins").doc(uid).get();
+        if (!adminDoc.exists)
+            return res.status(403).json({ error: "Admin access required" });
+        return next();
+    }
+    catch {
+        return res.status(403).json({ error: "Admin access required" });
+    }
+};
 const ALLOWED_MENU_CATEGORIES = ["Signature Blends", "Single Fruit Series"];
 // API Routes
 app.get("/menu", async (req, res) => {
@@ -37,7 +62,7 @@ app.get("/menu", async (req, res) => {
     const menuItems = menuSnapshot.docs.map((doc) => doc.data());
     res.json(menuItems);
 });
-app.post("/menu", authenticate, async (req, res) => {
+app.post("/menu", authenticate, checkAdmin, async (req, res) => {
     const { name, category, mrp, offerPrice, desc, image } = req.body;
     if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
         return res.status(400).json({ error: "Invalid name" });
@@ -52,7 +77,7 @@ app.post("/menu", authenticate, async (req, res) => {
         return res.status(400).json({ error: "Invalid offerPrice" });
     }
     const newItem = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: name.trim(),
         category,
         mrp,
@@ -63,7 +88,7 @@ app.post("/menu", authenticate, async (req, res) => {
     await db.collection("menu").doc(newItem.id).set(newItem);
     return res.json(newItem);
 });
-app.delete("/menu", authenticate, async (req, res) => {
+app.delete("/menu", authenticate, checkAdmin, async (req, res) => {
     const id = typeof req.query.id === "string" ? req.query.id : "";
     if (!id) {
         res.status(400).json({ error: "Missing id" });
@@ -72,7 +97,7 @@ app.delete("/menu", authenticate, async (req, res) => {
     await db.collection("menu").doc(id).delete();
     res.json({ success: true });
 });
-app.delete("/menu/:id", authenticate, async (req, res) => {
+app.delete("/menu/:id", authenticate, checkAdmin, async (req, res) => {
     const id = req.params.id;
     if (typeof id !== "string") {
         return res.status(400).json({ error: "Invalid id" });
@@ -125,7 +150,7 @@ app.post("/payment/create-order", authenticate, async (req, res) => {
         });
         const data = await response.json();
         if (!response.ok) {
-            console.error("Cashfree create-order failed:", data);
+            console.error("Cashfree create-order failed: HTTP", response.status);
             return res.status(502).json({ error: "Failed to create payment order" });
         }
         return res.json({ payment_session_id: data.payment_session_id, order_id: data.order_id });
@@ -154,7 +179,7 @@ app.post("/payment/verify", authenticate, async (req, res) => {
         });
         const data = await response.json();
         if (!response.ok) {
-            console.error("Cashfree verify failed:", data);
+            console.error("Cashfree verify failed: HTTP", response.status);
             return res.status(502).json({ error: "Failed to verify payment" });
         }
         const isPaid = data.order_status === "PAID";
@@ -167,7 +192,7 @@ app.post("/payment/verify", authenticate, async (req, res) => {
     }
 });
 // Auth routes
-app.post("/auth/google", async (req, res) => {
+app.post("/auth/google", authLimiter, async (req, res) => {
     const { credential } = req.body;
     try {
         const ticket = await client.verifyIdToken({
