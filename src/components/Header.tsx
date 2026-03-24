@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, User, Menu as MenuIcon, X, Star, Droplet, Apple, BookOpen } from 'lucide-react';
+import { LayoutDashboard, User, Menu as MenuIcon, X, Star, Droplet, Apple, BookOpen, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface HeaderProps {
@@ -10,10 +10,15 @@ interface HeaderProps {
   adminPendingCount?: number;
   onAdminOpen: () => void;
   onProfileToggle: () => void;
+  menuItems?: any[];
 }
 
-export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCount, onAdminOpen, onProfileToggle }: HeaderProps) {
+export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCount, onAdminOpen, onProfileToggle, menuItems = [] }: HeaderProps) {
   const [isNavOpen, setIsNavOpen] = useState(false);
+
+  const slugify = (text: string) => text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+  
+  const categories = Array.from(new Set(menuItems.map(item => item.category))).filter((cat): cat is string => Boolean(cat));
 
   const scrollTo = (id: string) => {
     setIsNavOpen(false);
@@ -158,14 +163,32 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
                 
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 ml-2 mb-3">Juice Menu</p>
-                  <button onClick={() => scrollTo('signature')} className="w-full flex items-center gap-4 p-4 bg-white border border-black/5 rounded-2xl hover:border-black/15 transition-colors text-left group">
-                    <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center text-[#1D1C1A] group-hover:scale-110 transition-transform"><Droplet size={18} /></div>
-                    <span className="font-bold text-[#1D1C1A] text-sm">Signature Blends</span>
-                  </button>
-                  <button onClick={() => scrollTo('pure')} className="w-full flex items-center gap-4 p-4 bg-white border border-black/5 rounded-2xl hover:border-black/15 transition-colors text-left group">
-                    <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center text-[#1D1C1A] group-hover:scale-110 transition-transform"><Apple size={18} /></div>
-                    <span className="font-bold text-[#1D1C1A] text-sm">Single Fruit Series</span>
-                  </button>
+                  
+                  {categories.length > 0 ? (
+                    categories.map(cat => (
+                      <button 
+                        key={cat}
+                        onClick={() => scrollTo(slugify(cat))} 
+                        className="w-full flex items-center gap-4 p-4 bg-white border border-black/5 rounded-2xl hover:border-black/15 transition-colors text-left group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center text-[#1D1C1A] group-hover:scale-110 transition-transform">
+                          {cat === "Signature Blends" ? <Droplet size={18} /> : cat === "Single Fruit Series" ? <Apple size={18} /> : <Sparkles size={18} />}
+                        </div>
+                        <span className="font-bold text-[#1D1C1A] text-sm">{cat}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <>
+                      <button onClick={() => scrollTo('signature')} className="w-full flex items-center gap-4 p-4 bg-white border border-black/5 rounded-2xl hover:border-black/15 transition-colors text-left group">
+                        <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center text-[#1D1C1A] group-hover:scale-110 transition-transform"><Droplet size={18} /></div>
+                        <span className="font-bold text-[#1D1C1A] text-sm">Signature Blends</span>
+                      </button>
+                      <button onClick={() => scrollTo('pure')} className="w-full flex items-center gap-4 p-4 bg-white border border-black/5 rounded-2xl hover:border-black/15 transition-colors text-left group">
+                        <div className="w-10 h-10 rounded-full bg-[#F9F8F6] flex items-center justify-center text-[#1D1C1A] group-hover:scale-110 transition-transform"><Apple size={18} /></div>
+                        <span className="font-bold text-[#1D1C1A] text-sm">Single Fruit Series</span>
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-2 pt-4 border-t border-black/5">

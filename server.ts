@@ -4,6 +4,7 @@ import path from "path";
 import { createSeedMenu, MenuItem } from "./data/menu";
 import { OAuth2Client } from "google-auth-library";
 import admin from "firebase-admin";
+import multer from "multer";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -19,6 +20,7 @@ if (serviceAccountKey) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
+        storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
       });
     }
     db = admin.firestore();
@@ -96,6 +98,55 @@ app.delete("/api/menu/:id", authenticate, async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   await db.collection("menu").doc(req.params.id).delete();
   res.json({ success: true });
+});
+
+// ─── Image Upload Proxy ──────────────────────────────────────────────────────
+// Uploads image via server → Firebase Storage (bypasses CORS entirely)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+});
+
+app.post("/api/upload", authenticate, upload.single("image"), async (req: any, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No file provided" });
+      return;
+    }
+
+    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccountKey) {
+      res.status(503).json({ error: "Storage not configured" });
+      return;
+    }
+
+    const serviceAccount = JSON.parse(serviceAccountKey);
+    const bucket = admin.storage().bucket();
+    console.log("🔍 Using Admin SDK default bucket:", bucket.name);
+
+    if (!bucket) {
+      res.status(503).json({ error: "Firebase Storage bucket not found" });
+      return;
+    }
+
+    const fileName = `products/${Date.now()}_${req.file.originalname.replace(/\s+/g, "_")}`;
+    const file = bucket.file(fileName);
+
+    await file.save(req.file.buffer, {
+      metadata: {
+        contentType: req.file.mimetype,
+        cacheControl: "public, max-age=31536000",
+      },
+      public: true,
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(fileName)}`;
+    console.log("✅ Upload complete:", publicUrl);
+    res.json({ url: publicUrl });
+  } catch (err: any) {
+    console.error("❌ Upload failed:", err.message);
+    res.status(500).json({ error: err.message || "Upload failed" });
+  }
 });
 
 // Auth routes

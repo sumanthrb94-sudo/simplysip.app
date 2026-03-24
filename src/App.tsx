@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
+import { AdminErrorBoundary } from './components/AdminErrorBoundary';
 import { motion, AnimatePresence } from 'motion/react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -610,7 +611,9 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
-            <AdminDashboard onBack={() => setIsAdminOpen(false)} isAdminUser={isAdmin} />
+            <AdminErrorBoundary onBack={() => setIsAdminOpen(false)}>
+              <AdminDashboard onBack={() => setIsAdminOpen(false)} isAdminUser={isAdmin} />
+            </AdminErrorBoundary>
           </motion.div>
         ) : isCheckoutOpen ? (
           <motion.div
@@ -662,6 +665,7 @@ export default function App() {
               adminPendingCount={adminPendingCount}
               onAdminOpen={() => setIsAdminOpen(true)}
               onProfileToggle={() => setIsProfileOpen(true)}
+              menuItems={menuItems}
             />
             <Hero onSubscribe={() => {
               const el = document.getElementById('subscriptions') || document.getElementById('subscription');

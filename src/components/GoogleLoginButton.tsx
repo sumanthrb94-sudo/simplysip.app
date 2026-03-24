@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { signInWithPopup } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebaseConfig";
@@ -8,14 +9,14 @@ interface GoogleLoginButtonProps {
 
 const GoogleLoginButton = ({ onLoginSuccess }: GoogleLoginButtonProps) => {
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const handleGoogleSignIn = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       // The signed-in user info.
       const user = result.user;
-      // This gives you a Google Access Token. You can use it to access the Google API.
-      // const credential = GoogleAuthProvider.credentialFromResult(result);
-      // const token = credential.accessToken;
       
       const payload: any = {
         uid: user.uid,
@@ -28,9 +29,15 @@ const GoogleLoginButton = ({ onLoginSuccess }: GoogleLoginButtonProps) => {
 
       await setDoc(doc(db, "users", user.uid), payload, { merge: true });
       onLoginSuccess(user);
-    } catch (error) {
-      console.error("Authentication error:", error);
-      // Handle Errors here.
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        // Silent ignore for ghost triggers during development
+        console.debug("ADMIN: Ghost popup error suppressed.");
+      } else {
+        console.error("Authentication error:", error);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

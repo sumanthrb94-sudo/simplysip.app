@@ -187,7 +187,22 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
       await upsertUserDoc(result.user);
       onClose();
     } catch (err: any) {
-      setError(err?.message || "Google sign-in failed.");
+      console.error("ADMIN: Google sign-in failure:", err);
+      // Lead Dev Move: Only show the error if the user is actually interacting
+      // This prevents 'ghost' popup-closed errors during HMR or page reloads
+      if (isSubmitting) {
+        if (err.code === 'auth/popup-closed-by-user') {
+          setError("The sign-in window was closed. Please keep it open until completion.");
+        } else if (err.code === 'auth/cancelled-popup-request') {
+          // Silent ignore for multiple attempts during dev HMR
+          setIsSubmitting(false);
+          return;
+        } else if (err.code === 'auth/popup-blocked') {
+          setError("Browser blocked the sign-in popup. Please allow popups.");
+        } else {
+          setError(err?.message || "Google sign-in failed.");
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }

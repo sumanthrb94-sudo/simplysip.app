@@ -19,11 +19,9 @@
       }
     },
     "orders": {
-      // Secure top-level read: Only admins can list all orders.
       ".read": "auth != null && root.child('admins').child(auth.uid).exists()",
       ".write": "auth != null",
       "$orderId": {
-        // Secure individual read: Only owner or admin.
         ".read": "data.child('userId').val() === auth.uid || root.child('admins').child(auth.uid).exists()",
         ".validate": "newData.hasChildren(['userId', 'userEmail', 'items', 'subtotal', 'deliveryFee', 'total', 'paymentStatus', 'orderStatus', 'createdAt'])",
         "userId": {
@@ -45,11 +43,9 @@
           ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 50000"
         },
         "paymentStatus": {
-          // Non-admins MUST set as unpaid initially.
           ".validate": "root.child('admins').child(auth.uid).exists() || newData.val() === 'unpaid'"
         },
         "orderStatus": {
-          // Non-admins MUST set as pending initially.
           ".validate": "root.child('admins').child(auth.uid).exists() || newData.val() === 'pending'"
         },
         "createdAt": {

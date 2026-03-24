@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw, CheckSquare, Square, Upload, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Trash2, Pencil, MessageCircle, CreditCard, X, MapPin, Phone, User, Clock, Truck, FileText, Banknote, Users, Package, Star, Calendar, TrendingUp, ChevronDown, RotateCcw, CheckSquare, Square, Upload, Loader2, CheckCircle2, Plus } from 'lucide-react';
 import { collection, onSnapshot, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getIdToken } from 'firebase/auth';
 import { auth, db, storage } from '../firebaseConfig';
 import { seedMenu } from '../data/seedMenu';
 
@@ -187,7 +187,9 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   // Form state
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
-  const [category, setCategory] = useState<"Signature Blends" | "Single Fruit Series">("Signature Blends");
+  const [category, setCategory] = useState<string>("Signature Blends");
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [mrp, setMrp] = useState('150');
   const [discountPercent, setDiscountPercent] = useState('20');
   const [offerPrice, setOfferPrice] = useState('120');
@@ -197,7 +199,17 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showUrlFallback, setShowUrlFallback] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [menuSaveToast, setMenuSaveToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const catalogRef = useRef<HTMLDivElement>(null);
+  const showMenuToast = (type: 'success' | 'error', msg: string) => {
+    setMenuSaveToast({ type, msg });
+    setTimeout(() => setMenuSaveToast(null), 4000);
+  };
+
+
 
   // Auto-calculate offerPrice when MRP or Discount changes
   useEffect(() => {
@@ -208,41 +220,138 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       setOfferPrice(String(calculated));
     }
   }, [mrp, discountPercent]);
+  
+  // Helper to compress images before upload (client-side)
+  const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<Blob | File> => {
+    return new Promise((resolve) => {
+      // Hard timeout of 10s for compression to prevent infinite loading
+      const timeout = setTimeout(() => {
+        console.warn("ADMIN: Compression timed out. Using original file.");
+        resolve(file);
+      }, 10000);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert("Please select an image file.");
+          if (width > maxWidth) {
+            height = (maxWidth / width) * height;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+
+          canvas.toBlob(
+            (blob) => {
+              clearTimeout(timeout);
+              if (blob) {
+                console.log(`ADMIN: Compression successful. Size reduced from ${file.size} to ${blob.size}`);
+                resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+              } else {
+                resolve(file); 
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        img.onerror = () => {
+          clearTimeout(timeout);
+          console.warn("ADMIN: Image loading failed for compression. Fallback to original.");
+          resolve(file);
+        };
+      };
+      reader.onerror = () => {
+        clearTimeout(timeout);
+        console.warn("ADMIN: FileReader failed. Fallback to original.");
+        resolve(file);
+      };
+    });
+  };
+
+  const uploadCancelledRef = useRef(false);
+
+  const cancelUpload = () => {
+    uploadCancelledRef.current = true;
+    setIsUploading(false);
+    setUploadProgress(0);
+    setUploadError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const originalFile = e.target.files?.[0];
+    if (!originalFile) return;
+    e.target.value = '';
+
+    if (!originalFile.type.startsWith('image/')) {
+      setUploadError('Invalid file type. Please select an image.');
       return;
     }
 
+    uploadCancelledRef.current = false;
+    setUploadError(null);
+    setShowUrlFallback(false);
     setIsUploading(true);
     setUploadProgress(0);
 
-    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(Math.round(progress));
-      },
-      (error) => {
-        console.error("Upload failed:", error);
-        alert("Upload failed. Make sure Storage rules allow uploads.");
-        setIsUploading(false);
-      },
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        setImage(downloadURL);
-        setIsUploading(false);
-        setUploadProgress(0);
+    // Compress before upload
+    let fileToUpload: Blob | File = originalFile;
+    try {
+      if (originalFile.type !== 'image/gif') {
+        fileToUpload = await compressImage(originalFile);
       }
-    );
+    } catch { /* skip compression, use original */ }
+
+    if (uploadCancelledRef.current) return;
+
+    try {
+      // Get Firebase auth token for the server endpoint
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('Not authenticated. Please sign in again.');
+      const idToken = await getIdToken(currentUser);
+
+      // Build multipart form data
+      const formData = new FormData();
+      formData.append('image', fileToUpload, originalFile.name);
+
+      // POST to our server — same origin, CORS-free
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: formData,
+      });
+
+      if (uploadCancelledRef.current) return;
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Upload failed (${response.status})`);
+
+      setImage(data.url);
+      setUploadProgress(100);
+      setTimeout(() => setIsUploading(false), 400);
+      console.log('ADMIN: Upload complete:', data.url);
+    } catch (err: any) {
+      if (uploadCancelledRef.current) return;
+      console.error('ADMIN: Upload failed:', err);
+      setIsUploading(false);
+      setUploadProgress(0);
+      setUploadError(err.message || 'Upload failed.');
+      setShowUrlFallback(true);
+    }
   };
 
   const handleSeedMenu = async () => {
@@ -672,36 +781,53 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedOrderIds.size === 0) return;
+    const isConfirmed = window.confirm(`Are you sure you want to PERMANENTLY DELETE ${selectedOrderIds.size} orders? This action cannot be undone.`);
+    if (!isConfirmed) return;
+
+    setIsSavingOrder(true);
+    try {
+      const batch = writeBatch(db);
+      selectedOrderIds.forEach(id => {
+        const orderRef = doc(db, "orders", id);
+        batch.delete(orderRef);
+      });
+      await batch.commit();
+
+      setLocalMockOrders((prev) => prev.filter((order) => !selectedOrderIds.has(order.id)));
+      setSelectedOrderIds(new Set());
+    } catch (err: any) {
+      console.error("Bulk delete failed:", err);
+      alert(`Failed to bulk delete orders: ${err.message}`);
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
   const handleSaveMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     const mrpNum = Number(mrp);
     const offerPriceNum = Number(offerPrice);
 
-    console.log("Saving menu item...", { name, mrp, discountPercent, offerPrice, image, desc, category, editingMenuId });
-    
-    // Manual Validation
+    // Inline validation — no blocking alert()
     if (!name.trim()) {
-      alert("Product Name is required.");
+      showMenuToast('error', 'Product Name is required.');
       return;
     }
     if (!desc.trim()) {
-      alert("Product Description is required.");
+      showMenuToast('error', 'Description is required.');
       return;
     }
     if (mrpNum <= 0 || offerPriceNum <= 0) {
-      alert("MRP and Offer Price must be positive numbers.");
+      showMenuToast('error', 'MRP and Offer Price must be positive.');
       return;
     }
     if (offerPriceNum > mrpNum) {
-      alert("Offer Price cannot be greater than MRP.");
+      showMenuToast('error', 'Offer Price cannot exceed MRP.');
       return;
     }
-    
-    // Allow saving without strict image URL validation to support image uploads
-    if (!image && !editingMenuId) {
-      if (!window.confirm("No image provided. Continue anyway?")) return;
-    }
-    
+
     const payload = {
       name: name.trim(),
       desc: desc.trim(),
@@ -718,35 +844,39 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
     try {
       if (editingMenuId) {
-        console.log("Updating existing item:", editingMenuId);
-        await updateDoc(doc(db, "menu", editingMenuId), payload);
-        alert("Menu item updated successfully!");
+        await updateDoc(doc(db, 'menu', editingMenuId), payload);
+        showMenuToast('success', `"${payload.name}" updated and live on menu!`);
       } else {
-        console.log("Adding new item to catalog...");
-        const docRef = await addDoc(collection(db, "menu"), { ...payload, createdAt: Date.now() });
-        console.log("Added with ID:", docRef.id);
-        alert("Menu item added successfully!");
+        await addDoc(collection(db, 'menu'), { ...payload, createdAt: Date.now() });
+        showMenuToast('success', `"${payload.name}" is now live on the menu!`);
       }
       resetMenuForm();
+      // Scroll catalog into view so admin sees the product appear in real-time
+      setTimeout(() => {
+        catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
     } catch (err: any) {
-      console.error("CRITICAL: Failed to save menu item:", err);
-      alert(`Error: ${err.message || 'Check database rules.'}`);
+      console.error('CRITICAL: Failed to save menu item:', err);
+      showMenuToast('error', err.message || 'Save failed. Check database rules.');
     }
   };
 
   const resetMenuForm = () => {
+    setEditingMenuId(null);
     setName('');
     setDesc('');
-    setCategory('Signature Blends');
     setMrp('150');
     setDiscountPercent('20');
     setOfferPrice('120');
     setImage('');
+    setCategory("Signature Blends");
     setInStock(true);
     setInventory('100');
-    setEditingMenuId(null);
-    setUploadProgress(0);
+    setUploadError(null);
+    setShowUrlFallback(false);
     setIsUploading(false);
+    setUploadProgress(0);
+    uploadCancelledRef.current = false;
   };
 
   const handleEditClick = (item: any) => {
@@ -760,6 +890,11 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setInStock(item.inStock !== false); // Default to true if undefined
     setInventory(String(item.inventory ?? '100'));
     setEditingMenuId(item.id);
+    setUploadError(null);
+    setIsUploading(false);
+    setUploadProgress(0);
+    setShowUrlFallback(false);
+    uploadCancelledRef.current = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -883,7 +1018,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-wider text-gray-300 font-medium">New Order Arrived</div>
-              <div className="text-sm font-bold text-white">{toastOrder?.address?.name || "Customer"} â€¢ {rupee}{toastOrder?.total}</div>
+              <div className="text-sm font-bold text-white">{toastOrder?.address?.name || "Customer"} \u2022 {rupee}{toastOrder?.total}</div>
             </div>
           </motion.button>
         )}
@@ -896,9 +1031,9 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                 { label: 'Total Revenue', value: rupee + Math.round(displayOrders.filter(o=>(o.paymentStatus||'')==='paid').reduce((s,o)=>s+Number(o.total||0),0)).toLocaleString('en-IN'), sub: 'all-time paid', color: 'emerald' },
                 { label: 'Total Orders', value: displayOrders.length, sub: displayOrders.filter(o=>(o.orderStatus||o.status||'')!=='cancelled').length+' active', color: 'blue' },
                 { label: 'Avg Order Value', value: rupee+(displayOrders.length?Math.round(displayOrders.reduce((s,o)=>s+Number(o.total||0),0)/displayOrders.length):0), sub: 'across all orders', color: 'violet' },
-                { label: 'Paid Rate', value: displayOrders.length?Math.round(displayOrders.filter(o=>(o.paymentStatus||'')==='paid').length/displayOrders.length*100)+'%':'â€”', sub: 'conversion rate', color: 'amber' },
+                { label: 'Paid Rate', value: displayOrders.length?Math.round(displayOrders.filter(o=>(o.paymentStatus||'')==='paid').length/displayOrders.length*100)+'%':'\u2014', sub: 'conversion rate', color: 'amber' },
                 { label: 'Active Subs', value: subscribers, sub: 'paying subscribers', color: 'pink' },
-                { label: 'Users', value: statsLoading?'â€¦':totalUsers, sub: 'registered accounts', color: 'gray' },
+                { label: 'Users', value: statsLoading?'\u2026':totalUsers, sub: 'registered accounts', color: 'gray' },
               ].map(({label,value,sub,color})=>(
                 <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                   <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 text-${color}-500`}>{label}</div>
@@ -963,7 +1098,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             </div>
                             <div className="h-1.5 bg-gray-100 rounded-full"><div className="h-full bg-emerald-500 rounded-full" style={{width:`${t.rev/maxR*100}%`}}/></div>
                           </div>
-                          <span className="text-[10px] text-gray-400 font-mono w-8 text-right">Ã—{t.qty}</span>
+                          <span className="text-[10px] text-gray-400 font-mono w-8 text-right">\u00D7{t.qty}</span>
                         </div>
                       ))}
                     </div>
@@ -1001,7 +1136,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             <div className="mb-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <input type="text" placeholder="Search name, area, order IDâ€¦" value={orderSearch} onChange={e=>setOrderSearch(e.target.value)}
+                  <input type="text" placeholder="Search name, area, order ID\u2026" value={orderSearch} onChange={e=>setOrderSearch(e.target.value)}
                     className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 font-medium"/>
                   <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   {orderSearch&&<button onClick={()=>setOrderSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-700"><X size={12}/></button>}
@@ -1064,7 +1199,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             {order.paymentStatus==='paid'&&<span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">PAID</span>}
                           </div>
                           <div className="font-bold text-sm text-gray-900">{order.address?.name||'Customer'}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{order.address?.area||'â€”'} Â· {order.deliverySlot||'No slot'} Â· {order.items?.length||0} items</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{order.address?.area||'\u2014'} \u00B7 {order.deliverySlot||'No slot'} \u00B7 {order.items?.length||0} items</div>
                           {status!=='cancelled'&&(
                             <div className="flex items-center gap-1 mt-2">
                               {PIPE.map((step,i)=>(
@@ -1103,10 +1238,12 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   <span className="bg-white text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold">{selectedOrderIds.size}</span>
                   <div className="h-4 w-px bg-gray-700"/>
                   <div className="flex gap-2">
-                    {[{label:'Prepare',s:'preparing'},{label:'Dispatch',s:'out-for-delivery'},{label:'Deliver âœ“',s:'delivered'}].map(({label,s})=>(
+                    {[{label:'Prepare',s:'preparing'},{label:'Dispatch',s:'out-for-delivery'},{label:'Deliver \u2713',s:'delivered'}].map(({label,s})=>(
                       <button key={s} onClick={()=>handleBulkStatusUpdate(s)} disabled={isSavingOrder}
                         className="px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-all disabled:opacity-50">{label}</button>
                     ))}
+                    <button onClick={handleBulkDelete} disabled={isSavingOrder}
+                      className="px-3 py-1.5 rounded-lg text-xs font-extrabold uppercase tracking-wider bg-red-900/50 hover:bg-red-800 border border-red-700/50 transition-all disabled:opacity-50 text-red-200">Delete</button>
                   </div>
                   <button onClick={()=>setSelectedOrderIds(new Set())} className="ml-1 text-gray-500 hover:text-white"><X size={14}/></button>
                 </motion.div>
@@ -1277,46 +1414,158 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
                 <div className="p-6">
                   <form onSubmit={handleSaveMenu} className="space-y-6">
-                    {/* Media Management Area */}
+                    {/* NEW: Media Management Area - Zomato Style */}
                     <div className="space-y-3">
-                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Product Media</label>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Product Media</label>
+                      </div>
+                      
                       <div className="relative group">
-                        <div className="aspect-square w-full rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex flex-col items-center justify-center transition-all group-hover:border-gray-300 group-hover:bg-gray-100/50">
+                        <div className={`aspect-square w-full rounded-2xl border-2 border-dashed overflow-hidden flex flex-col items-center justify-center transition-all ${
+                          uploadError ? 'border-red-200 bg-red-50/30' : 'border-gray-200 bg-gray-50 group-hover:border-gray-300 group-hover:bg-gray-100/50'
+                        }`}>
                           {image ? (
-                            <>
+                            <div className="relative w-full h-full">
                               <img src={image} alt="Preview" className="h-full w-full object-cover mix-blend-multiply" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-white text-gray-900 px-4 py-2 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-all">Change Photo</button>
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-white text-gray-900 px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-xl transform scale-90 group-hover:scale-100 transition-all active:scale-95">Replace Media</button>
                               </div>
-                            </>
+                            </div>
                           ) : (
-                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-3 text-gray-400 hover:text-gray-600 transition-colors">
-                              <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center border border-gray-100">
-                                <Upload size={20} />
+                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-4 text-gray-400 hover:text-gray-600 transition-all p-8 text-center group/btn">
+                              <div className="w-16 h-16 bg-white rounded-3xl shadow-sm flex items-center justify-center border border-gray-100 group-hover/btn:scale-110 group-hover/btn:rotate-3 transition-all">
+                                <Upload size={24} className="group-hover/btn:text-indigo-500" />
                               </div>
-                              <span className="text-xs font-bold">Upload Product Image</span>
-                              <span className="text-[10px] opacity-60">PNG, JPG up to 5MB</span>
+                              <div className="space-y-1">
+                                <span className="text-sm font-black text-gray-700 block">Select Product Shot</span>
+                                <span className="text-[10px] font-bold opacity-60 uppercase tracking-widest">High Quality PNG/JPG up to 5MB</span>
+                              </div>
                             </button>
                           )}
                           
+                          {/* Upload Overlay — indeterminate while uploading, solid 100% on complete */}
                           {isUploading && (
-                            <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center p-6 text-center">
-                              <Loader2 size={32} className="text-gray-900 animate-spin mb-3" />
-                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} className="h-full bg-black rounded-full" />
+                            <div className="absolute inset-0 bg-white/96 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+                              <div className="relative mb-5">
+                                {uploadProgress === 100 ? (
+                                  <CheckCircle2 size={40} className="text-emerald-500" />
+                                ) : (
+                                  <Loader2 size={40} className="text-indigo-600 animate-spin" />
+                                )}
                               </div>
-                              <span className="text-[10px] font-bold text-gray-900 uppercase tracking-widest">Uploading {uploadProgress}%</span>
+                              <div className="space-y-2 w-full">
+                                <div className="flex justify-between items-end mb-1">
+                                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                    {uploadProgress === 100 ? 'Upload Complete!' : 'Uploading…'}
+                                  </span>
+                                  {uploadProgress === 100 && (
+                                    <span className="text-[11px] font-black font-mono text-emerald-600">100%</span>
+                                  )}
+                                </div>
+                                {/* Indeterminate shimmer bar while uploading, solid green on 100% */}
+                                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                                  {uploadProgress === 100 ? (
+                                    <div className="h-full w-full bg-emerald-500 rounded-full" />
+                                  ) : (
+                                    <div className="h-full rounded-full bg-indigo-400/40 relative overflow-hidden">
+                                      <div
+                                        className="absolute inset-y-0 w-1/2 bg-indigo-600 rounded-full"
+                                        style={{ animation: 'shimmer-slide 1.4s ease-in-out infinite' }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {uploadProgress < 100 && (
+                                <button
+                                  type="button"
+                                  onClick={cancelUpload}
+                                  className="mt-4 px-4 py-1.5 rounded-lg bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 text-[10px] font-black uppercase tracking-widest transition-all border border-gray-200 hover:border-red-200"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+
+                          {/* Error State */}
+                          {uploadError && !isUploading && (
+                            <div className="absolute inset-0 bg-red-50/90 flex flex-col items-center justify-center p-6 text-center animate-in slide-in-from-bottom duration-300">
+                              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-red-100 mb-4 text-red-500">
+                                <X size={20} />
+                              </div>
+                              <h4 className="text-[11px] font-black text-red-700 uppercase tracking-widest mb-1">Upload Interrupted</h4>
+                              <p className="text-[10px] font-medium text-red-600/80 leading-relaxed mb-4 max-w-[200px]">{uploadError}</p>
+                              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-200 active:scale-95 transition-all">Retry Upload</button>
                             </div>
                           )}
                         </div>
                         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
                       </div>
-                      <div className="flex items-center gap-2">
-                         <div className="h-px bg-gray-100 flex-1"></div>
-                         <span className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">Or URL</span>
-                         <div className="h-px bg-gray-100 flex-1"></div>
-                      </div>
-                      <input value={image} onChange={e => setImage(e.target.value)} placeholder="https://external-image-url.com/..." className="w-full text-xs py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 placeholder:text-gray-300" />
+
+                      {/* Manual Fallback Logic - Lead Dev UX */}
+                      {(showUrlFallback || image) && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-top duration-500">
+                          <div className="flex items-center gap-2">
+                             <div className="h-px bg-gray-100 flex-1"></div>
+                             <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest whitespace-nowrap">Image Reference (URL)</span>
+                             <div className="h-px bg-gray-100 flex-1"></div>
+                          </div>
+                          <div className="relative">
+                            <input value={image} onChange={e => {setImage(e.target.value); if(e.target.value) setUploadError(null);}} placeholder="https://external-cdn.com/product-shot.jpg" className={`w-full text-xs font-mono py-3 px-10 bg-white border rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all ${uploadError ? 'border-red-200' : 'border-gray-200 focus:border-indigo-400'}`} />
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><FileText size={14} /></div>
+                          </div>
+                          {showUrlFallback && !image && (
+                            <p className="text-[9px] font-medium text-indigo-600 text-center animate-pulse tracking-wide">Pro Tip: If Storage is blocked, paste a direct image link above.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* NEW: Live Card Preview - Lead Dev UX */}
+                    <div className="pt-2 py-6 border-y border-gray-50">
+                       <div className="flex items-center justify-between mb-6">
+                          <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Live Card Preview</label>
+                          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-tighter">Real-time Sync</span>
+                       </div>
+                       <div className="max-w-[220px] mx-auto scale-90 sm:scale-100 origin-top">
+                          <div className="bg-white border border-gray-100 rounded-[24px] overflow-hidden shadow-2xl shadow-gray-200/50 relative">
+                             <div className="relative aspect-[4/5] bg-gray-50">
+                                {image ? (
+                                   <img src={image} alt="Preview" className="w-full h-full object-cover mix-blend-multiply transition-opacity duration-500" />
+                                ) : (
+                                   <div className="w-full h-full flex items-center justify-center text-gray-100 bg-gray-50/50"><Package size={48} strokeWidth={1} /></div>
+                                )}
+                                <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                                   <span className={`px-2 py-0.5 ${category === "Signature Blends" ? 'bg-black text-white' : 'bg-indigo-600 text-white'} text-[8px] font-black uppercase tracking-widest rounded shadow-sm w-fit`}>
+                                      {category === "Signature Blends" ? "Blend" : "Pure"}
+                                   </span>
+                                </div>
+                                {Number(discountPercent) > 0 && (
+                                   <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg">-{discountPercent}%</div>
+                                )}
+                             </div>
+                             <div className="p-5 space-y-2">
+                                <div className="h-4 w-3/4 bg-gray-100 rounded-md animate-pulse" style={{ display: name ? 'none' : 'block' }}></div>
+                                {name && <h4 className="text-sm font-black text-gray-900 leading-tight line-clamp-1">{name}</h4>}
+                                <div className="h-3 w-full bg-gray-50 rounded-md animate-pulse" style={{ display: desc ? 'none' : 'block' }}></div>
+                                {desc && <p className="text-[11px] text-gray-400 font-medium line-clamp-1 leading-relaxed">{desc}</p>}
+                                <div className="flex items-end justify-between pt-4 border-t border-gray-50">
+                                   <div className="flex flex-col">
+                                      {Number(mrp) > Number(offerPrice) && (
+                                         <span className="text-[10px] text-gray-300 line-through font-mono leading-none">{rupee}{mrp}</span>
+                                      )}
+                                      <span className="text-xl font-black text-gray-900 font-mono tracking-tighter leading-none mt-1.5">{rupee}{offerPrice}</span>
+                                   </div>
+                                   <div className="w-8 h-8 rounded-full bg-gray-950 flex items-center justify-center text-white scale-90">
+                                      <Plus size={14} />
+                                   </div>
+                                </div>
+                             </div>
+                          </div>
+                          <p className="text-[10px] text-center text-gray-400 font-black uppercase tracking-[0.2em] mt-6 opacity-60">UI Simulation</p>
+                       </div>
                     </div>
 
                     {/* Basic Info */}
@@ -1326,10 +1575,59 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                         <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Citrus Blast)" className="w-full text-sm font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300" />
                       </div>
                       <div>
-                        <select value={category} onChange={(e) => setCategory(e.target.value as any)} className="w-full text-xs font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10">
-                          <option value="Signature Blends">Signature Blends</option>
-                          <option value="Single Fruit Series">Single Fruit Series</option>
-                        </select>
+                        {isAddingCategory ? (
+                          <div className="flex gap-2 animate-in slide-in-from-left duration-300">
+                             <input 
+                               autoFocus
+                               value={newCategoryName} 
+                               onChange={e => setNewCategoryName(e.target.value)} 
+                               placeholder="New Category Name..." 
+                               className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                             />
+                             <button 
+                               type="button"
+                               onClick={() => {
+                                 if (newCategoryName.trim()) {
+                                   setCategory(newCategoryName.trim());
+                                   setIsAddingCategory(false);
+                                   setNewCategoryName("");
+                                 } else {
+                                   setIsAddingCategory(false);
+                                 }
+                               }}
+                               className="px-4 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all"
+                             >
+                               Set
+                             </button>
+                             <button 
+                               type="button"
+                               onClick={() => setIsAddingCategory(false)}
+                               className="p-2.5 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200"
+                             >
+                               <X size={14} />
+                             </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                             <select 
+                               value={category} 
+                               onChange={(e) => setCategory(e.target.value)} 
+                               className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                             >
+                               {Array.from(new Set([...items.map(i => i.category), "Signature Blends", "Single Fruit Series", category])).filter(Boolean).map(cat => (
+                                 <option key={cat} value={cat}>{cat}</option>
+                               ))}
+                             </select>
+                             <button 
+                               type="button"
+                               onClick={() => setIsAddingCategory(true)}
+                               className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center shadow-lg active:scale-95"
+                               title="Create New Category"
+                             >
+                               <Plus size={16} />
+                             </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1398,14 +1696,36 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
             </div>
 
             {/* Catalog Grid View */}
-            <div className="flex-1">
+            <div className="flex-1" ref={catalogRef}>
+              {/* Save Toast */}
+              <AnimatePresence>
+                {menuSaveToast && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold shadow-sm ${
+                      menuSaveToast.type === 'success'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-red-50 border-red-200 text-red-800'
+                    }`}
+                  >
+                    {menuSaveToast.type === 'success' ? <CheckCircle2 size={16} className="shrink-0 text-emerald-600" /> : <X size={16} className="shrink-0 text-red-500" />}
+                    {menuSaveToast.msg}
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                    <h2 className="text-lg font-bold text-gray-900">Live Catalog</h2>
                    <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-500 rounded-full border border-gray-200">{items.length} Items</span>
+                   <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-[10px] font-bold text-emerald-600 rounded-full border border-emerald-100">
+                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                     Real-time
+                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setIsRefreshing(true)} className={`p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
+                  <button onClick={refreshAll} className={`p-2 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
                     <RotateCcw size={16} />
                   </button>
                 </div>

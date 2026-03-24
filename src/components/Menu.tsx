@@ -1,4 +1,4 @@
-﻿﻿import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Star } from 'lucide-react';
@@ -427,7 +427,32 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
   const [selectedProduct, setSelectedProduct] = useState<ProductData | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [cartItems, setCartItems] = useState<Record<string, number>>({});
-  const [activeSection, setActiveSection] = useState<string>('signature');
+  const [activeSection, setActiveSection] = useState<string>('');
+
+  const slugify = (text: string) => text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+
+  const products = menuItems.map((item, index) =>
+    buildProduct(
+      {
+        ...item,
+        mrp: getMrp(item),
+        offerPrice: getOfferPrice(item)
+      },
+      index
+    )
+  );
+
+  const categories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
+  const groupedProducts = categories.reduce((acc, cat) => {
+    acc[cat] = products.filter(p => p.category === cat);
+    return acc;
+  }, {} as Record<string, ProductData[]>);
+
+  useEffect(() => {
+    if (categories.length > 0 && !activeSection) {
+      setActiveSection('subscriptions'); // Default to subscriptions or first category
+    }
+  }, [categories, activeSection]);
 
   useEffect(() => {
     const normalized = Object.fromEntries(
@@ -468,13 +493,12 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
   // ScrollSpy to automatically detect which section is in view
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ['signature', 'pure', 'subscriptions'];
-      let current = 'signature'; // Default fallback
-      for (const id of sections) {
+      const allSections = ['subscriptions', ...categories.map(slugify)];
+      let current = allSections[0];
+      for (const id of allSections) {
         const el = document.getElementById(id) || (id === 'subscriptions' ? document.getElementById('subscription') : null);
         if (el) {
           const rect = el.getBoundingClientRect();
-          // More generous threshold to account for component padding heights
           if (rect.top <= 250) {
             current = id;
           }
@@ -482,7 +506,6 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
       }
       setActiveSection((prev) => {
         if (prev !== current) {
-          // Center the active tab in the horizontally scrollable container
           const btn = document.getElementById(`nav-btn-${current}`);
           if (btn && btn.parentElement) {
             btn.parentElement.scrollTo({
@@ -496,9 +519,9 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
       });
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Init
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [categories]);
 
   // Intercept hardware back button for the product panel
   useEffect(() => {
@@ -536,18 +559,7 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
     }
   };
 
-  const products = menuItems.map((item, index) =>
-    buildProduct(
-      {
-        ...item,
-        mrp: getMrp(item),
-        offerPrice: getOfferPrice(item)
-      },
-      index
-    )
-  );
-  const layeredFlavours = products.filter((item) => item.category === "Signature Blends");
-  const pureExpression = products.filter((item) => item.category === "Single Fruit Series");
+  // Replaced with dynamic products mapping above
   const cartCount = Object.keys(cartItems).reduce((sum, id) => {
     const isValid = id === 'sub_weekly' || id === 'sub_monthly' || products.some(p => p.id === id);
     return sum + (isValid ? (cartItems[id] ?? 0) : 0);
@@ -612,30 +624,23 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
                 : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
             }`}
           >
-            <Star size={14} className={activeSection === 'subscriptions' ? "text-yellow-400 fill-yellow-400" : "text-gray-400"} /> Only Subscriptions
+            <Star size={14} className={activeSection === 'subscriptions' ? "text-yellow-400 fill-yellow-400" : "text-gray-400"} /> Subscriptions
           </button>
-          <button 
-            id="nav-btn-signature"
-            onClick={() => scrollToSection('signature')} 
-            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
-              activeSection === 'signature'
-                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
-                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
-            }`}
-          >
-            Signature Blends
-          </button>
-          <button 
-            id="nav-btn-pure"
-            onClick={() => scrollToSection('pure')} 
-            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
-              activeSection === 'pure'
-                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
-                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
-            }`}
-          >
-            Single Fruit Series
-          </button>
+          
+          {categories.map(cat => (
+            <button 
+              key={cat}
+              id={`nav-btn-${slugify(cat)}`}
+              onClick={() => scrollToSection(slugify(cat))} 
+              className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
+                activeSection === slugify(cat)
+                  ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
+                  : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         {menuItems.length === 0 ? (
@@ -643,31 +648,20 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
         ) : (
           <div className="space-y-16 sm:space-y-20">
             <CartState count={cartCount} total={combinedTotal} onCheckout={onCheckout} />
-            <div id="signature" className="space-y-8 sm:space-y-10 scroll-mt-40">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">Layered Flavours</p>
-                  <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[#1D1C1A] font-display">
-                    Blends with depth. Clean finish.
-                  </h3>
+            {categories.map(cat => (
+              <div key={cat} id={slugify(cat)} className="space-y-8 sm:space-y-10 scroll-mt-40">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">{cat.includes('Series') || cat.includes('Blends') ? 'Collection' : 'Juice Category'}</p>
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[#1D1C1A] font-display">
+                      {cat}. {cat === 'Signature Blends' ? 'Blends with depth. Clean finish.' : cat === 'Single Fruit Series' ? 'Single fruit. Pure cold-pressed juice.' : 'Freshly crafted for your wellness.'}
+                    </h3>
+                  </div>
+                  <div className="hidden md:block h-px w-48 bg-black/10"></div>
                 </div>
-                <div className="hidden md:block h-px w-48 bg-black/10"></div>
+                {renderGrid(groupedProducts[cat])}
               </div>
-              {renderGrid(layeredFlavours)}
-            </div>
-
-            <div id="pure" className="space-y-8 sm:space-y-10 scroll-mt-40">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">Pure Expression</p>
-                  <h3 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[#1D1C1A] font-display">
-                    Single fruit. Pure cold-pressed juice.
-                  </h3>
-                </div>
-                <div className="hidden md:block h-px w-48 bg-black/10"></div>
-              </div>
-              {renderGrid(pureExpression)}
-            </div>
+            ))}
           </div>
         )}
       </div>

@@ -76,3 +76,9 @@ html {
     transform: translateX(0);
   }
 }
+
+/* Upload progress — indeterminate shimmer slide */
+@keyframes shimmer-slide {
+  0%   { left: -60%; }
+  100% { left: 110%; }
+}
