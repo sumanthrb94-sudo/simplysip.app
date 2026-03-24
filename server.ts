@@ -41,9 +41,21 @@ const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
+const isProduction = process.env.NODE_ENV === "production";
 app.use(helmet({
-  contentSecurityPolicy: false, // Vite dev server manages this in dev; set explicitly in prod via CDN/proxy
+  contentSecurityPolicy: isProduction ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://accounts.google.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https://storage.googleapis.com", "https://lh3.googleusercontent.com"],
+      connectSrc: ["'self'", "https://*.googleapis.com", "https://*.firebaseio.com", "https://sandbox.cashfree.com", "https://api.cashfree.com"],
+      frameSrc: ["https://accounts.google.com"],
+    },
+  } : false,
   crossOriginEmbedderPolicy: false, // Required for Google Sign-In popup flow
+  strictTransportSecurity: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
 }));
 app.use(express.json({ limit: "50kb" }));
 
@@ -67,6 +79,19 @@ const authenticate = async (req: express.Request, res: express.Response, next: e
   }
 };
 
+const checkAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!db) return res.status(503).json({ error: "Admin SDK unavailable" });
+  const uid = (req as any).user?.uid;
+  if (!uid) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const adminDoc = await db.collection("admins").doc(uid).get();
+    if (!adminDoc.exists) return res.status(403).json({ error: "Admin access required" });
+    return next();
+  } catch {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+};
+
 // API Routes
 app.get("/api/menu", async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
@@ -82,7 +107,7 @@ app.get("/api/menu", async (req, res) => {
   res.json(menuItems);
 });
 
-app.post("/api/menu", authenticate, async (req, res) => {
+app.post("/api/menu", authenticate, checkAdmin, async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   const { name, category, mrp, offerPrice, desc, image } = req.body;
   if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
@@ -110,7 +135,7 @@ app.post("/api/menu", authenticate, async (req, res) => {
   res.json(newItem);
 });
 
-app.delete("/api/menu", authenticate, async (req, res) => {
+app.delete("/api/menu", authenticate, checkAdmin, async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
@@ -121,7 +146,7 @@ app.delete("/api/menu", authenticate, async (req, res) => {
   res.json({ success: true });
 });
 
-app.delete("/api/menu/:id", authenticate, async (req, res) => {
+app.delete("/api/menu/:id", authenticate, checkAdmin, async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
   await db.collection("menu").doc(req.params.id).delete();
   res.json({ success: true });
@@ -142,7 +167,7 @@ const upload = multer({
   },
 });
 
-app.post("/api/upload", authenticate, uploadLimiter, upload.single("image"), async (req: any, res) => {
+app.post("/api/upload", authenticate, checkAdmin, uploadLimiter, upload.single("image"), async (req: any, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: "No file provided" });
@@ -241,7 +266,7 @@ app.post("/api/payment/create-order", authenticate, paymentLimiter, async (req, 
     const data = await response.json() as any;
 
     if (!response.ok) {
-      console.error("Cashfree create-order failed:", data);
+      console.error("Cashfree create-order failed: HTTP", response.status);
       res.status(502).json({ error: "Failed to create payment order" });
       return;
     }
@@ -276,7 +301,7 @@ app.post("/api/payment/verify", authenticate, paymentLimiter, async (req, res) =
     const data = await response.json() as any;
 
     if (!response.ok) {
-      console.error("Cashfree verify failed:", data);
+      console.error("Cashfree verify failed: HTTP", response.status);
       res.status(502).json({ error: "Failed to verify payment" });
       return;
     }

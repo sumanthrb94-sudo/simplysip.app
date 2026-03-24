@@ -4,6 +4,7 @@ import express from "express";
 import admin from "firebase-admin"; // v2
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 
 admin.initializeApp();
 
@@ -12,9 +13,10 @@ const app = express();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["https://simplysip.vercel.app"];
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "https://simplysip.app")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(cors({ origin: ALLOWED_ORIGINS, methods: ["GET", "POST", "DELETE"] }));
 app.use(express.json({ limit: "50kb" }));
@@ -27,6 +29,8 @@ app.use((req: Request, _res: Response, next: any) => {
   }
   next();
 });
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
 const authenticate = async (req: Request, res: Response, next: any) => {
   const authHeader = req.headers.authorization;
@@ -48,6 +52,18 @@ const authenticate = async (req: Request, res: Response, next: any) => {
   }
 };
 
+const checkAdmin = async (req: Request, res: Response, next: any) => {
+  const uid = (req as any).user?.uid;
+  if (!uid) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const adminDoc = await db.collection("admins").doc(uid).get();
+    if (!adminDoc.exists) return res.status(403).json({ error: "Admin access required" });
+    return next();
+  } catch {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+};
+
 const ALLOWED_MENU_CATEGORIES = ["Signature Blends", "Single Fruit Series"];
 
 // API Routes
@@ -57,7 +73,7 @@ app.get("/menu", async (req: Request, res: Response) => {
   res.json(menuItems);
 });
 
-app.post("/menu", authenticate, async (req: Request, res: Response) => {
+app.post("/menu", authenticate, checkAdmin, async (req: Request, res: Response) => {
   const { name, category, mrp, offerPrice, desc, image } = req.body;
   if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
     return res.status(400).json({ error: "Invalid name" });
@@ -72,7 +88,7 @@ app.post("/menu", authenticate, async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid offerPrice" });
   }
   const newItem = {
-    id: Date.now().toString(),
+    id: crypto.randomUUID(),
     name: name.trim(),
     category,
     mrp,
@@ -84,7 +100,7 @@ app.post("/menu", authenticate, async (req: Request, res: Response) => {
   return res.json(newItem);
 });
 
-app.delete("/menu", authenticate, async (req: Request, res: Response) => {
+app.delete("/menu", authenticate, checkAdmin, async (req: Request, res: Response) => {
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
     res.status(400).json({ error: "Missing id" });
@@ -94,7 +110,7 @@ app.delete("/menu", authenticate, async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.delete("/menu/:id", authenticate, async (req: Request, res: Response) => {
+app.delete("/menu/:id", authenticate, checkAdmin, async (req: Request, res: Response) => {
   const id = req.params.id;
   if (typeof id !== "string") {
     return res.status(400).json({ error: "Invalid id" });
@@ -156,7 +172,7 @@ app.post("/payment/create-order", authenticate, async (req: Request, res: Respon
     const data = await response.json() as any;
 
     if (!response.ok) {
-      console.error("Cashfree create-order failed:", data);
+      console.error("Cashfree create-order failed: HTTP", response.status);
       return res.status(502).json({ error: "Failed to create payment order" });
     }
 
@@ -190,7 +206,7 @@ app.post("/payment/verify", authenticate, async (req: Request, res: Response) =>
     const data = await response.json() as any;
 
     if (!response.ok) {
-      console.error("Cashfree verify failed:", data);
+      console.error("Cashfree verify failed: HTTP", response.status);
       return res.status(502).json({ error: "Failed to verify payment" });
     }
 
@@ -205,7 +221,7 @@ app.post("/payment/verify", authenticate, async (req: Request, res: Response) =>
 });
 
 // Auth routes
-app.post("/auth/google", async (req: Request, res: Response) => {
+app.post("/auth/google", authLimiter, async (req: Request, res: Response) => {
   const { credential } = req.body;
   try {
     const ticket = await client.verifyIdToken({

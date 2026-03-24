@@ -147,20 +147,11 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         return;
       }
 
-      // Immediately authorize synchronously
-      const email = currentUser.email?.toLowerCase().trim() || "";
-      const isEmailAdmin = email === "sumanthbolla97@gmail.com";
-      setIsAuthorized(isEmailAdmin);
-      
-      // Check Firestore as backup without blocking
+      // Check Firestore for admin role — no client-side email bypass
+      setIsAuthorized(null); // show loading while checking
       getDoc(doc(db, "admins", currentUser.uid))
-        .then((snap) => { 
-          if (snap.exists()) setIsAuthorized(true); 
-          else if (!isEmailAdmin) {
-            setIsAuthorized(false);
-          }
-        })
-        .catch((err) => console.warn("Admin status check failed:", err));
+        .then((snap) => setIsAuthorized(snap.exists()))
+        .catch(() => setIsAuthorized(false));
     });
 
     return () => unsubscribe();
