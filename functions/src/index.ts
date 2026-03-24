@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as functions from "firebase-functions";
 import express from "express";
-import admin from "firebase-admin";
+import admin from "firebase-admin"; // v2
 import { OAuth2Client } from "google-auth-library";
 import cors from "cors";
 
