@@ -19,6 +19,15 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 app.use(cors({ origin: ALLOWED_ORIGINS, methods: ["GET", "POST", "DELETE"] }));
 app.use(express.json({ limit: "50kb" }));
 
+// Firebase Hosting rewrites pass the full path (e.g. /api/payment/create-order)
+// Strip the /api prefix so Express routes match correctly
+app.use((req: Request, _res: Response, next: any) => {
+  if (req.url.startsWith("/api/")) {
+    req.url = req.url.slice(4); // remove "/api"
+  }
+  next();
+});
+
 const authenticate = async (req: Request, res: Response, next: any) => {
   const authHeader = req.headers.authorization;
   const token =
