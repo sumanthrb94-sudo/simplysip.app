@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
 import admin from "firebase-admin";
 import { OAuth2Client } from "google-auth-library";
@@ -227,4 +227,4 @@ app.post("/auth/google", async (req: Request, res: Response) => {
   }
 });
 
-export const api = functions.https.onRequest(app);
+export const api = onRequest({ region: "us-central1" }, app);

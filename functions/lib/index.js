@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
 import admin from "firebase-admin";
 import { OAuth2Client } from "google-auth-library";
@@ -195,5 +195,5 @@ app.post("/auth/google", async (req, res) => {
         return res.status(400).json({ error: "Invalid credential" });
     }
 });
-export const api = functions.https.onRequest(app);
+export const api = onRequest({ region: "us-central1" }, app);
 //# sourceMappingURL=index.js.map
