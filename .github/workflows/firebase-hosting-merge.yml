@@ -24,9 +24,23 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
           VITE_ADMIN_EMAIL: ${{ secrets.VITE_ADMIN_EMAIL }}
+          VITE_CASHFREE_ENV: sandbox
+      - name: Build Firebase Functions
+        run: cd functions && npm ci && npm run build
+      - name: Create functions env file
+        run: |
+          echo "CASHFREE_APP_ID=${{ secrets.CASHFREE_APP_ID }}" >> functions/.env
+          echo "CASHFREE_SECRET_KEY=${{ secrets.CASHFREE_SECRET_KEY }}" >> functions/.env
+          echo "CASHFREE_ENV=sandbox" >> functions/.env
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SIMPLYSIP_57DB5 }}
           channelId: live
           projectId: simplysip-57db5
+      - name: Deploy Firebase Functions
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SIMPLYSIP_57DB5 }}' > /tmp/sa.json
+          npx firebase-tools deploy --only functions --project simplysip-57db5
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
