@@ -6,6 +6,8 @@ import { OAuth2Client } from "google-auth-library";
 import admin from "firebase-admin";
 import multer from "multer";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
@@ -39,7 +41,14 @@ const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-app.use(express.json());
+app.use(helmet({
+  contentSecurityPolicy: false, // Vite dev server manages this in dev; set explicitly in prod via CDN/proxy
+  crossOriginEmbedderPolicy: false, // Required for Google Sign-In popup flow
+}));
+app.use(express.json({ limit: "50kb" }));
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+const uploadLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 
 const authenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -75,9 +84,27 @@ app.get("/api/menu", async (req, res) => {
 
 app.post("/api/menu", authenticate, async (req, res) => {
   if (!db) { res.status(503).json({ error: "Admin SDK unavailable" }); return; }
+  const { name, category, mrp, offerPrice, desc, image } = req.body;
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+    res.status(400).json({ error: "Invalid name" }); return;
+  }
+  if (!["Signature Blends", "Single Fruit Series"].includes(category)) {
+    res.status(400).json({ error: "Invalid category" }); return;
+  }
+  if (typeof mrp !== "number" || mrp <= 0 || mrp > 10000) {
+    res.status(400).json({ error: "Invalid mrp" }); return;
+  }
+  if (typeof offerPrice !== "number" || offerPrice <= 0 || offerPrice > mrp) {
+    res.status(400).json({ error: "Invalid offerPrice" }); return;
+  }
   const newItem = {
     id: Date.now().toString(),
-    ...req.body,
+    name: name.trim(),
+    category,
+    mrp,
+    offerPrice,
+    ...(typeof desc === "string" ? { desc: desc.trim() } : {}),
+    ...(typeof image === "string" ? { image } : {}),
   };
   await db.collection("menu").doc(newItem.id).set(newItem);
   res.json(newItem);
@@ -102,12 +129,20 @@ app.delete("/api/menu/:id", authenticate, async (req, res) => {
 
 // ─── Image Upload Proxy ──────────────────────────────────────────────────────
 // Uploads image via server → Firebase Storage (bypasses CORS entirely)
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed."));
+    }
+  },
 });
 
-app.post("/api/upload", authenticate, upload.single("image"), async (req: any, res) => {
+app.post("/api/upload", authenticate, uploadLimiter, upload.single("image"), async (req: any, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: "No file provided" });
@@ -145,12 +180,13 @@ app.post("/api/upload", authenticate, upload.single("image"), async (req: any, r
     res.json({ url: publicUrl });
   } catch (err: any) {
     console.error("❌ Upload failed:", err.message);
-    res.status(500).json({ error: err.message || "Upload failed" });
+    const isClientError = err.message?.includes("Invalid file type");
+    res.status(isClientError ? 400 : 500).json({ error: isClientError ? err.message : "Upload failed" });
   }
 });
 
 // Auth routes
-app.post("/api/auth/google", async (req, res) => {
+app.post("/api/auth/google", authLimiter, async (req, res) => {
   const { credential } = req.body;
   try {
     const ticket = await client.verifyIdToken({
@@ -190,7 +226,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => {
+    app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

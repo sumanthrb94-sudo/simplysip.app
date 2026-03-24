@@ -12,8 +12,34 @@ const app = express();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-app.use(cors({ origin: true }));
-app.use(express.json());
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : ["https://simplysip.vercel.app"];
+
+app.use(cors({ origin: ALLOWED_ORIGINS, methods: ["GET", "POST", "DELETE"] }));
+app.use(express.json({ limit: "50kb" }));
+
+const authenticate = async (req: Request, res: Response, next: any) => {
+  const authHeader = req.headers.authorization;
+  const token =
+    typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.split("Bearer ")[1]
+      : null;
+
+  if (!token) {
+    return res.status(401).json({ error: "Missing or invalid authorization token." });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    (req as any).user = decoded;
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+};
+
+const ALLOWED_MENU_CATEGORIES = ["Signature Blends", "Single Fruit Series"];
 
 // API Routes
 app.get("/menu", async (req: Request, res: Response) => {
@@ -22,16 +48,34 @@ app.get("/menu", async (req: Request, res: Response) => {
   res.json(menuItems);
 });
 
-app.post("/menu", async (req: Request, res: Response) => {
+app.post("/menu", authenticate, async (req: Request, res: Response) => {
+  const { name, category, mrp, offerPrice, desc, image } = req.body;
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+    return res.status(400).json({ error: "Invalid name" });
+  }
+  if (!ALLOWED_MENU_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: "Invalid category" });
+  }
+  if (typeof mrp !== "number" || mrp <= 0 || mrp > 10000) {
+    return res.status(400).json({ error: "Invalid mrp" });
+  }
+  if (typeof offerPrice !== "number" || offerPrice <= 0 || offerPrice > mrp) {
+    return res.status(400).json({ error: "Invalid offerPrice" });
+  }
   const newItem = {
     id: Date.now().toString(),
-    ...req.body,
+    name: name.trim(),
+    category,
+    mrp,
+    offerPrice,
+    ...(typeof desc === "string" ? { desc: desc.trim() } : {}),
+    ...(typeof image === "string" ? { image } : {}),
   };
   await db.collection("menu").doc(newItem.id).set(newItem);
-  res.json(newItem);
+  return res.json(newItem);
 });
 
-app.delete("/menu", async (req: Request, res: Response) => {
+app.delete("/menu", authenticate, async (req: Request, res: Response) => {
   const id = typeof req.query.id === "string" ? req.query.id : "";
   if (!id) {
     res.status(400).json({ error: "Missing id" });
@@ -41,9 +85,9 @@ app.delete("/menu", async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.delete("/menu/:id", async (req: Request, res: Response) => {
+app.delete("/menu/:id", authenticate, async (req: Request, res: Response) => {
   const id = req.params.id;
-  if (typeof id !== 'string') {
+  if (typeof id !== "string") {
     return res.status(400).json({ error: "Invalid id" });
   }
   await db.collection("menu").doc(id).delete();
@@ -77,7 +121,7 @@ app.post("/auth/google", async (req: Request, res: Response) => {
     }
 
     return res.json(user.data());
-  } catch (error) {
+  } catch {
     return res.status(400).json({ error: "Invalid credential" });
   }
 });

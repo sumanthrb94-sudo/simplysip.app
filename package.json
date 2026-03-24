@@ -15,6 +15,9 @@
     "setup-admin": "node scripts/setup-admin.js",
     "deploy-firebase": "firebase deploy --only database"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
@@ -22,9 +25,11 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.3.1",
     "firebase": "^12.10.0",
     "firebase-admin": "^12.1.0",
     "google-auth-library": "^10.6.1",
+    "helmet": "^8.1.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.1.1",
