@@ -15,6 +15,9 @@
     "setup-admin": "node scripts/setup-admin.js",
     "deploy-firebase": "firebase deploy --only database"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
