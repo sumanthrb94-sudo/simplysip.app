@@ -79,4 +79,5 @@ export interface UserProfile extends Partial<OrderAddress> {
   phoneNumber: string;
   location?: string;
   locationAccuracy?: number;
+  updatedAt?: number;
 }
