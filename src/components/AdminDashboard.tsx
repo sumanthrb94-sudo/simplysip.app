@@ -188,6 +188,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [inStock, setInStock] = useState(true);
   const [inventory, setInventory] = useState('100');
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
+  const [deletingMenuItem, setDeletingMenuItem] = useState<any | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -890,12 +891,25 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   };
 
   const handleToggleArchiveMenu = async (id: string, isArchived: boolean) => {
-    if (!isArchived && !window.confirm("Are you sure you want to archive this item? It will be hidden from the public menu.")) return;
+    if (!isArchived && !deletingMenuItem && !window.confirm("Are you sure you want to archive this item? It will be hidden from the public menu.")) return;
     try {
       await updateDoc(doc(db, "menu", id), { isArchived: !isArchived, updatedAt: Date.now() });
+      setDeletingMenuItem(null);
     } catch (err: any) {
       console.error("Failed to update menu item state:", err);
       alert(`Failed to update item: ${err.message || 'Check database rules.'}`);
+    }
+  };
+
+  const handleDeletePermanently = async (id: string) => {
+    if (!window.confirm("Are you sure you want to PERMANENTLY DELETE this product? This action cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(db, "menu", id));
+      setDeletingMenuItem(null);
+      showMenuToast('success', 'Product permanently removed from database.');
+    } catch (err: any) {
+      console.error("Failed to delete product:", err);
+      alert(`Failed to delete product: ${err.message || 'Check database rules.'}`);
     }
   };
 
@@ -1809,12 +1823,47 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                                 <button onClick={() => handleEditClick(item)} className="p-2 text-black hover:bg-gray-100 rounded-lg transition-all">
                                    <Pencil size={14} />
                                 </button>
-                                <button onClick={() => handleToggleArchiveMenu(item.id, !!item.isArchived)} className={`p-2 ${item.isArchived ? 'text-black' : 'text-black'} hover:bg-gray-100 rounded-lg transition-all overflow-hidden`}>
+                                <button onClick={() => {
+                                   if (item.isArchived) {
+                                     handleToggleArchiveMenu(item.id, true);
+                                   } else {
+                                     setDeletingMenuItem(item);
+                                   }
+                                 }} className={`p-2 text-black hover:bg-gray-100 rounded-lg transition-all overflow-hidden`}>
                                    {item.isArchived ? <RotateCcw size={14} /> : <Trash2 size={14} />}
                                 </button>
                              </div>
                           </div>
                           <p className="text-[11px] text-gray-500 font-medium line-clamp-2 mb-4 leading-relaxed flex-1">{item.desc}</p>
+                           
+                           {/* Action Overlay for Archive vs Permanent Delete */}
+                           <AnimatePresence>
+                             {deletingMenuItem?.id === item.id && (
+                               <motion.div 
+                                 initial={{ opacity: 0, scale: 0.95 }}
+                                 animate={{ opacity: 1, scale: 1 }}
+                                 exit={{ opacity: 0, scale: 0.95 }}
+                                 className="absolute inset-x-0 bottom-0 bg-white/95 backdrop-blur-md p-4 flex flex-col gap-2 rounded-t-2xl border-t border-gray-100 shadow-2xl z-20"
+                               >
+                                 <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Removal Options</span>
+                                    <button onClick={() => setDeletingMenuItem(null)} className="text-gray-400 hover:text-black p-1"><X size={12}/></button>
+                                 </div>
+                                 <button 
+                                   onClick={() => handleToggleArchiveMenu(item.id, false)}
+                                   className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                 >
+                                   Archive Item
+                                 </button>
+                                 <button 
+                                   onClick={() => handleDeletePermanently(item.id)}
+                                   className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-200"
+                                 >
+                                   Delete Permanently
+                                 </button>
+                               </motion.div>
+                             )}
+                           </AnimatePresence>
                           
                           <div className="pt-4 border-t border-gray-50 flex items-end justify-between">
                             <div className="flex flex-col">
