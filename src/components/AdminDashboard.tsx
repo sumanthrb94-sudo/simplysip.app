@@ -147,11 +147,18 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         return;
       }
 
-      // Check Firestore for admin role — no client-side email bypass
-      setIsAuthorized(null); // show loading while checking
-      getDoc(doc(db, "admins", currentUser.uid))
-        .then((snap) => setIsAuthorized(snap.exists()))
-        .catch(() => setIsAuthorized(false));
+      // Check Firestore for admin role with email-based fallback
+      const email = currentUser.email?.toLowerCase().trim() || "";
+      const isEmailAdmin = email === "sumanthbolla97@gmail.com";
+      
+      if (isEmailAdmin) {
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(null); // show loading while checking
+        getDoc(doc(db, "admins", currentUser.uid))
+          .then((snap) => setIsAuthorized(snap.exists()))
+          .catch(() => setIsAuthorized(false));
+      }
     });
 
     return () => unsubscribe();

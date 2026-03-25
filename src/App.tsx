@@ -122,17 +122,22 @@ export default function App() {
         setIsAuthOpen(false);
         
         // Check Firestore admins collection for admin status
-        getDoc(doc(db, "admins", currentUser.uid))
-          .then((snap) => {
-            setIsAdmin(snap.exists());
-          })
-          .catch((err: any) => {
-            if (err.code === 'unavailable' || err.message?.includes('offline')) {
-              console.debug("Admin check deferred: Client is offline.");
-            } else {
-              console.warn("Failed to load admin status:", err);
-            }
-          });
+        const isEmailAdmin = currentUser.email?.toLowerCase().trim() === "sumanthbolla97@gmail.com";
+        if (isEmailAdmin) {
+          setIsAdmin(true);
+        } else {
+          getDoc(doc(db, "admins", currentUser.uid))
+            .then((snap) => {
+              setIsAdmin(snap.exists());
+            })
+            .catch((err: any) => {
+              if (err.code === 'unavailable' || err.message?.includes('offline')) {
+                console.debug("Admin check deferred: Client is offline.");
+              } else {
+                console.warn("Failed to load admin status:", err);
+              }
+            });
+        }
 
         // Trigger the premium splash screen transition immediately after a login event
         if (initialAuthResolved.current) {
