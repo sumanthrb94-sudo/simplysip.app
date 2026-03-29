@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import Checkout from '../Checkout';
+import Checkout from './Checkout';
 
 // 1. Mock Firebase so we don't make real network requests during the test
 vi.mock('../../firebaseConfig', () => ({
@@ -24,8 +24,11 @@ describe('Checkout Component - Optimistic Order Flow', () => {
     // Mock a logged-in user with a valid, serviceable location
     const mockUser = {
       uid: 'test_user_123',
+      email: 'test@example.com',
+      displayName: 'Test User',
       name: 'Test User',
       phone: '9999999999',
+      phoneNumber: '9999999999',
       address: '123 Test St',
       area: 'Banjara Hills',
       location: 'Lat 17.4152, Lng 78.4358',
@@ -35,7 +38,16 @@ describe('Checkout Component - Optimistic Order Flow', () => {
     // Mock cart and menu items
     const mockCart = { 'item_1': 1 }; // 1 item in cart
     const mockMenuItems = [
-      { id: 'item_1', name: 'Test Juice', mrp: 150, offerPrice: 100, category: 'Signature Blends' as any }
+      { 
+        id: 'item_1', 
+        name: 'Test Juice', 
+        desc: 'Testing juice',
+        image: 'test.jpg',
+        mrp: 150, 
+        offerPrice: 100, 
+        price: 100,
+        category: 'Signature Blends' as any 
+      }
     ];
 
     render(
@@ -53,19 +65,19 @@ describe('Checkout Component - Optimistic Order Flow', () => {
     );
 
     // Step 1: Verify we are on the first screen and click "Proceed to Payment"
-    expect(screen.getByText('Your Order.')).toBeInTheDocument();
+    expect(screen.getByText('Your Order.')).toBeTruthy();
     const proceedButton = screen.getByText('Proceed to Payment');
     fireEvent.click(proceedButton);
 
     // Step 2: Verify we are on the payment screen and click "Pay Now"
-    await waitFor(() => expect(screen.getByText('Secure Payment')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Secure Payment')).toBeTruthy());
     const payNowButton = screen.getByText('Pay Now');
     fireEvent.click(payNowButton);
 
     // Step 3: Assert the optimistic UI updates happen instantly
     await waitFor(() => {
       // The success screen should render
-      expect(screen.getByText('Order Successful')).toBeInTheDocument();
+      expect(screen.getByText('Order Successful')).toBeTruthy();
       // The cart should be cleared
       expect(mockOnClearCart).toHaveBeenCalled();
       // The order should be passed to App.tsx

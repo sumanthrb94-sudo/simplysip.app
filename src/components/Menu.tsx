@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import type { Dispatch, SetStateAction, CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, Star } from 'lucide-react';
@@ -85,6 +85,7 @@ const buildProduct = (item: any, index: number): ProductData => {
   return {
     ...item,
     id: String(item.id ?? index),
+    image: item.image,
     tagline: item.tagline || item.desc || "Cold-pressed blend crafted for daily balance",
     bestSeller: item.bestSeller ?? index === 0,
     sweetness,
@@ -443,11 +444,22 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
     )
   );
 
-  const categories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
-  const groupedProducts = categories.reduce((acc, cat) => {
-    acc[cat] = products.filter(p => p.category === cat);
-    return acc;
-  }, {} as Record<string, ProductData[]>);
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(products.map(p => p.category))).filter(Boolean) as string[];
+    // Ensure Subscriptions stays at top
+    return cats.sort((a, b) => {
+      if (a === 'Subscriptions') return -1;
+      if (b === 'Subscriptions') return 1;
+      return a.localeCompare(b);
+    });
+  }, [products]);
+
+  const groupedProducts = useMemo(() => {
+    return categories.reduce((acc, cat) => {
+      acc[cat] = products.filter(p => p.category === cat);
+      return acc;
+    }, {} as Record<string, ProductData[]>);
+  }, [categories, products]);
 
   useEffect(() => {
     if (categories.length > 0 && !activeSection) {
@@ -562,17 +574,16 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
 
   // Replaced with dynamic products mapping above
   const cartCount = Object.keys(cartItems).reduce((sum, id) => {
-    const isValid = id === 'sub_weekly' || id === 'sub_monthly' || products.some(p => p.id === id);
-    return sum + (isValid ? (cartItems[id] ?? 0) : 0);
+    // Check if item exists in products array (this covers dynamic subs too)
+    const exists = products.some(p => p.id === id);
+    return sum + (exists ? (cartItems[id] ?? 0) : 0);
   }, 0);
-  const cartTotal = products.reduce((sum: number, item) => {
+
+  const combinedTotal = products.reduce((sum: number, item) => {
     const qty = cartItems[item.id] ?? 0;
     if (!qty) return sum;
-    return sum + (getOfferPrice(item) * qty);
+    return sum + (item.offerPrice * qty);
   }, 0);
-  const subscriptionTotal =
-    ((cartItems.sub_weekly ?? 0) * 799) + ((cartItems.sub_monthly ?? 0) * 2599);
-  const combinedTotal = cartTotal + subscriptionTotal;
 
   useEffect(() => {
     onCartTotalChange(combinedTotal);
@@ -616,29 +627,18 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
         </motion.div>
 
         <div className="sticky top-[70px] sm:top-[85px] z-40 bg-white/80 backdrop-blur-xl border-y border-black/5 py-4 px-4 sm:px-6 -mx-4 sm:mx-0 mb-8 sm:mb-12 flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <button 
-            id="nav-btn-subscriptions"
-            onClick={() => scrollToSection('subscriptions')} 
-            className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 flex items-center gap-2 transition-all ${
-              activeSection === 'subscriptions' 
-                ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]' 
-                : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
-            }`}
-          >
-            <Star size={14} className={activeSection === 'subscriptions' ? "text-yellow-400 fill-yellow-400" : "text-gray-400"} /> Subscriptions
-          </button>
-          
           {categories.map(cat => (
             <button 
               key={cat}
               id={`nav-btn-${slugify(cat)}`}
               onClick={() => scrollToSection(slugify(cat))} 
-              className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all ${
+              className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all flex items-center gap-2 ${
                 activeSection === slugify(cat)
                   ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
                   : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
               }`}
             >
+              {cat === 'Subscriptions' && <Star size={14} className={activeSection === slugify(cat) ? "text-yellow-400 fill-yellow-400" : "text-gray-400"} />}
               {cat}
             </button>
           ))}

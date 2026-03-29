@@ -99,6 +99,9 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   const [items, setItems] = useState<any[]>(
     seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item }))
   );
+
+  const subItems = useMemo(() => items.filter(i => i.category === 'Subscriptions'), [items]);
+  const regItems = useMemo(() => items.filter(i => i.category !== 'Subscriptions'), [items]);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -354,14 +357,54 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
   };
 
   const handleSeedMenu = async () => {
-    if (items.length > 0) return;
+    // Check if we already have subscriptions to avoid duplicates
+    const hasWeekly = items.some(i => i.id === "sub_weekly");
+    const hasMonthly = items.some(i => i.id === "sub_monthly");
     setIsSeeding(true);
+    
+    // Core shop subscription products
+    const initialSubscriptions = [
+      { 
+        id: "sub_weekly", 
+        name: "Weekly Subscription", 
+        mrp: 999, 
+        offerPrice: 799,
+        category: "Subscriptions",
+        image: "/images/hero-lineup.png",
+        desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
+      },
+      { 
+        id: "sub_monthly", 
+        name: "Monthly Subscription", 
+        mrp: 3599, 
+        offerPrice: 2599,
+        category: "Subscriptions",
+        image: "/images/hero.jpeg",
+        desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
+      }
+    ];
+
     try {
-      await Promise.all(
-        seedMenu.map((item) => {
-          return addDoc(collection(db, "menu"), { ...item, createdAt: Date.now() });
-        })
-      );
+      const batch = writeBatch(db);
+      
+      // Seed regular products only if catalog is empty
+      if (items.length === 0) {
+        seedMenu.forEach((item) => {
+          const newRef = doc(collection(db, "menu"));
+          batch.set(newRef, { ...item, createdAt: Date.now() });
+        });
+      }
+
+      // Seed core subscription products if missing
+      initialSubscriptions.forEach((sub) => {
+        if (sub.id === "sub_weekly" && hasWeekly) return;
+        if (sub.id === "sub_monthly" && hasMonthly) return;
+        const subRef = doc(db, "menu", sub.id);
+        batch.set(subRef, { ...sub, createdAt: Date.now() });
+      });
+
+      await batch.commit();
+      console.log("ADMIN: Seeded subscriptions successfully.");
     } catch (err) {
       console.error("Failed to seed menu:", err);
     } finally {
@@ -376,10 +419,16 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
       (snapshot) => {
         console.log("ADMIN: Menu snapshot received, docs count:", snapshot.size);
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setItems(data.length > 0 ? data : seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item })));
+        // Only fallback to seedMenu if NO data exists in Firestore "menu" collection
+        if (data.length > 0) {
+           setItems(data);
+        } else {
+           setItems(seedMenu.map((item, index) => ({ id: `seed-${index + 1}`, ...item })));
+        }
         setMenuError(null);
         setLoading(false);
-        if (data.length === 0 && !hasAutoSeeded.current) {
+        const hasSubscriptions = data.some(i => i.id === "sub_weekly" || i.id === "sub_monthly");
+        if ((data.length === 0 || !hasSubscriptions) && !hasAutoSeeded.current) {
           hasAutoSeeded.current = true;
           handleSeedMenu();
         }
@@ -894,7 +943,11 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
     setUploadProgress(0);
     setShowUrlFallback(false);
     uploadCancelledRef.current = false;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Only scroll to top for regular products, not subscriptions
+    if (item.category !== 'Subscriptions') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleToggleArchiveMenu = async (id: string, isArchived: boolean) => {
@@ -1436,7 +1489,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
 
                 <div className="p-6">
                   <form onSubmit={handleSaveMenu} className="space-y-6">
-                    {/* NEW: Media Management Area - Zomato Style */}
+                    {/* Media Management Area */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Product Media</label>
@@ -1465,70 +1518,37 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             </button>
                           )}
                           
-                          {/* Upload Overlay — indeterminate while uploading, solid 100% on complete */}
                           {isUploading && (
                             <div className="absolute inset-0 bg-white/96 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
                               <div className="relative mb-5">
-                                {uploadProgress === 100 ? (
-                                  <CheckCircle2 size={40} className="text-emerald-500" />
-                                ) : (
-                                  <Loader2 size={40} className="text-indigo-600 animate-spin" />
-                                )}
+                                {uploadProgress === 100 ? <CheckCircle2 size={40} className="text-emerald-500" /> : <Loader2 size={40} className="text-indigo-600 animate-spin" />}
                               </div>
                               <div className="space-y-2 w-full">
                                 <div className="flex justify-between items-end mb-1">
-                                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-                                    {uploadProgress === 100 ? 'Upload Complete!' : 'Uploading…'}
-                                  </span>
-                                  {uploadProgress === 100 && (
-                                    <span className="text-[11px] font-black font-mono text-emerald-600">100%</span>
-                                  )}
+                                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{uploadProgress === 100 ? 'Complete!' : 'Uploading…'}</span>
+                                  {uploadProgress === 100 && <span className="text-[11px] font-black font-mono text-emerald-600">100%</span>}
                                 </div>
-                                {/* Indeterminate shimmer bar while uploading, solid green on 100% */}
                                 <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden shadow-inner">
-                                  {uploadProgress === 100 ? (
-                                    <div className="h-full w-full bg-emerald-500 rounded-full" />
-                                  ) : (
-                                    <div className="h-full rounded-full bg-indigo-400/40 relative overflow-hidden">
-                                      <div
-                                        className="absolute inset-y-0 w-1/2 bg-indigo-600 rounded-full"
-                                        style={{ animation: 'shimmer-slide 1.4s ease-in-out infinite' }}
-                                      />
-                                    </div>
-                                  )}
+                                  {uploadProgress === 100 ? <div className="h-full w-full bg-emerald-500 rounded-full" /> : <div className="h-full rounded-full bg-indigo-400/40 relative overflow-hidden"><div className="absolute inset-y-0 w-1/2 bg-indigo-600 rounded-full" style={{ animation: 'shimmer-slide 1.4s ease-in-out infinite' }} /></div>}
                                 </div>
                               </div>
-                              {uploadProgress < 100 && (
-                                <button
-                                  type="button"
-                                  onClick={cancelUpload}
-                                  className="mt-4 px-4 py-1.5 rounded-lg bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 text-[10px] font-black uppercase tracking-widest transition-all border border-gray-200 hover:border-red-200"
-                                >
-                                  Cancel
-                                </button>
-                              )}
                             </div>
                           )}
 
-
-                          {/* Error State */}
                           {uploadError && !isUploading && (
-                            <div className="absolute inset-0 bg-red-50/90 flex flex-col items-center justify-center p-6 text-center animate-in slide-in-from-bottom duration-300">
-                              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-red-100 mb-4 text-red-500">
-                                <X size={20} />
-                              </div>
+                            <div className="absolute inset-0 bg-red-50/90 flex flex-col items-center justify-center p-6 text-center">
+                              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-red-100 mb-4 text-red-500"><X size={20} /></div>
                               <h4 className="text-[11px] font-black text-red-700 uppercase tracking-widest mb-1">Upload Interrupted</h4>
-                              <p className="text-[10px] font-medium text-red-600/80 leading-relaxed mb-4 max-w-[200px]">{uploadError}</p>
-                              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-200 active:scale-95 transition-all">Retry Upload</button>
+                              <p className="text-[10px] font-medium text-red-600/80 leading-relaxed mb-4">{uploadError}</p>
+                              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg">Retry</button>
                             </div>
                           )}
                         </div>
                         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
                       </div>
 
-                      {/* Manual Fallback Logic - Lead Dev UX */}
                       {(showUrlFallback || image) && (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-top duration-500">
+                        <div className="space-y-3">
                           <div className="flex items-center gap-2">
                              <div className="h-px bg-gray-100 flex-1"></div>
                              <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest whitespace-nowrap">Image Reference (URL)</span>
@@ -1538,14 +1558,11 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                             <input value={image} onChange={e => {setImage(e.target.value); if(e.target.value) setUploadError(null);}} placeholder="https://external-cdn.com/product-shot.jpg" className={`w-full text-xs font-mono py-3 px-10 bg-white border rounded-xl focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all ${uploadError ? 'border-red-200' : 'border-gray-200 focus:border-indigo-400'}`} />
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><FileText size={14} /></div>
                           </div>
-                          {showUrlFallback && !image && (
-                            <p className="text-[9px] font-medium text-indigo-600 text-center animate-pulse tracking-wide">Pro Tip: If Storage is blocked, paste a direct image link above.</p>
-                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* NEW: Live Card Preview - Lead Dev UX */}
+                    {/* Live Card Preview */}
                     <div className="pt-2 py-6 border-y border-gray-50">
                        <div className="flex items-center justify-between mb-6">
                           <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Live Card Preview</label>
@@ -1554,39 +1571,26 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                        <div className="max-w-[220px] mx-auto scale-90 sm:scale-100 origin-top">
                           <div className="bg-white border border-gray-100 rounded-[24px] overflow-hidden shadow-2xl shadow-gray-200/50 relative">
                              <div className="relative aspect-[4/5] bg-gray-50">
-                                {image ? (
-                                   <img src={image} alt="Preview" className="w-full h-full object-cover mix-blend-multiply transition-opacity duration-500" />
-                                ) : (
-                                   <div className="w-full h-full flex items-center justify-center text-gray-100 bg-gray-50/50"><Package size={48} strokeWidth={1} /></div>
-                                )}
+                                {image ? <img src={image} alt="Preview" className="w-full h-full object-cover mix-blend-multiply transition-opacity duration-500" /> : <div className="w-full h-full flex items-center justify-center text-gray-100 bg-gray-50/50"><Package size={48} strokeWidth={1} /></div>}
                                 <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                                    <span className={`px-2 py-0.5 ${category === "Signature Blends" ? 'bg-black text-white' : 'bg-indigo-600 text-white'} text-[8px] font-black uppercase tracking-widest rounded shadow-sm w-fit`}>
                                       {category === "Signature Blends" ? "Blend" : "Pure"}
                                    </span>
                                 </div>
-                                {Number(discountPercent) > 0 && (
-                                   <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg">-{discountPercent}%</div>
-                                )}
+                                {Number(discountPercent) > 0 && <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-lg text-[10px] font-black shadow-lg">-{discountPercent}%</div>}
                              </div>
                              <div className="p-5 space-y-2">
-                                <div className="h-4 w-3/4 bg-gray-100 rounded-md animate-pulse" style={{ display: name ? 'none' : 'block' }}></div>
                                 {name && <h4 className="text-sm font-black text-gray-900 leading-tight line-clamp-1">{name}</h4>}
-                                <div className="h-3 w-full bg-gray-50 rounded-md animate-pulse" style={{ display: desc ? 'none' : 'block' }}></div>
                                 {desc && <p className="text-[11px] text-gray-400 font-medium line-clamp-1 leading-relaxed">{desc}</p>}
                                 <div className="flex items-end justify-between pt-4 border-t border-gray-50">
                                    <div className="flex flex-col">
-                                      {Number(mrp) > Number(offerPrice) && (
-                                         <span className="text-[10px] text-gray-300 line-through font-mono leading-none">{rupee}{mrp}</span>
-                                      )}
+                                      {Number(mrp) > Number(offerPrice) && <span className="text-[10px] text-gray-300 line-through font-mono leading-none">{rupee}{mrp}</span>}
                                       <span className="text-xl font-black text-gray-900 font-mono tracking-tighter leading-none mt-1.5">{rupee}{offerPrice}</span>
                                    </div>
-                                   <div className="w-8 h-8 rounded-full bg-gray-950 flex items-center justify-center text-white scale-90">
-                                      <Plus size={14} />
-                                   </div>
+                                   <div className="w-8 h-8 rounded-full bg-gray-950 flex items-center justify-center text-white scale-90"><Plus size={14} /></div>
                                 </div>
                              </div>
                           </div>
-                          <p className="text-[10px] text-center text-gray-400 font-black uppercase tracking-[0.2em] mt-6 opacity-60">UI Simulation</p>
                        </div>
                     </div>
 
@@ -1594,76 +1598,36 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                     <div className="space-y-4">
                       <div>
                         <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Product Identity</label>
-                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Citrus Blast)" className="w-full text-sm font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300" />
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Citrus Blast)" className="w-full text-sm font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
                       </div>
                       <div>
                         {isAddingCategory ? (
-                          <div className="flex gap-2 animate-in slide-in-from-left duration-300">
-                             <input 
-                               autoFocus
-                               value={newCategoryName} 
-                               onChange={e => setNewCategoryName(e.target.value)} 
-                               placeholder="New Category Name..." 
-                               className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
-                             />
-                             <button 
-                               type="button"
-                               onClick={() => {
-                                 if (newCategoryName.trim()) {
-                                   setCategory(newCategoryName.trim());
-                                   setIsAddingCategory(false);
-                                   setNewCategoryName("");
-                                 } else {
-                                   setIsAddingCategory(false);
-                                 }
-                               }}
-                               className="px-4 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all"
-                             >
-                               Set
-                             </button>
-                             <button 
-                               type="button"
-                               onClick={() => setIsAddingCategory(false)}
-                               className="p-2.5 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200"
-                             >
-                               <X size={14} />
-                             </button>
+                          <div className="flex gap-2">
+                             <input autoFocus value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="New Category Name..." className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-indigo-200 rounded-xl" />
+                             <button type="button" onClick={() => { if (newCategoryName.trim()) { setCategory(newCategoryName.trim()); setIsAddingCategory(false); setNewCategoryName(""); } else { setIsAddingCategory(false); } }} className="px-4 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase">Set</button>
+                             <button type="button" onClick={() => setIsAddingCategory(false)} className="p-2.5 bg-gray-100 text-gray-500 rounded-xl"><X size={14} /></button>
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                             <select 
-                               value={category} 
-                               onChange={(e) => setCategory(e.target.value)} 
-                               className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                             >
-                               {Array.from(new Set([...items.map(i => i.category), "Signature Blends", "Single Fruit Series", category])).filter(Boolean).map(cat => (
-                                 <option key={cat} value={cat}>{cat}</option>
-                               ))}
+                             <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex-1 text-xs font-bold py-2.5 px-3 bg-white border border-gray-200 rounded-xl">
+                               {Array.from(new Set([...items.map(i => i.category), "Signature Blends", "Single Fruit Series", category])).filter(Boolean).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
                              </select>
-                             <button 
-                               type="button"
-                               onClick={() => setIsAddingCategory(true)}
-                               className="p-2.5 bg-gray-900 text-white rounded-xl hover:bg-black transition-all flex items-center justify-center shadow-lg active:scale-95"
-                               title="Create New Category"
-                             >
-                               <Plus size={16} />
-                             </button>
+                             <button type="button" onClick={() => setIsAddingCategory(true)} className="p-2.5 bg-gray-900 text-white rounded-xl flex items-center justify-center shadow-lg"><Plus size={16} /></button>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Financials / Discounts */}
                     <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">MRP ({rupee})</label>
-                          <input type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" />
+                          <input type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg" />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Discount %</label>
                           <div className="relative">
-                            <input type="number" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900 pr-7" />
+                            <input type="number" value={discountPercent} onChange={e => setDiscountPercent(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg pr-7" />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">%</span>
                           </div>
                         </div>
@@ -1678,37 +1642,24 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                       <div className="flex items-center justify-between">
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">In Stock Status</label>
-                          <p className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter">{inStock ? 'Available for purchase' : 'Marked as Sold Out'}</p>
+                          <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest">{inStock ? 'Available' : 'Sold Out'}</p>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setInStock(!inStock)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${inStock ? 'bg-emerald-500' : 'bg-red-500'}`}
-                        >
+                        <button type="button" onClick={() => setInStock(!inStock)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${inStock ? 'bg-emerald-500' : 'bg-red-500'}`}>
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${inStock ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Inventory Quantity</label>
-                        <div className="flex items-center gap-3">
-                           <input 
-                             type="number" 
-                             value={inventory} 
-                             onChange={e => setInventory(e.target.value)} 
-                             className="flex-1 text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-900" 
-                           />
-                           <span className="text-[10px] font-bold text-gray-400 uppercase">Units</span>
-                        </div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Inventory</label>
+                        <input type="number" value={inventory} onChange={e => setInventory(e.target.value)} className="w-full text-sm font-mono font-bold py-2 px-3 bg-white border border-gray-200 rounded-lg" />
                       </div>
                     </div>
 
-                    {/* Product Details */}
                     <div>
-                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Description & Ingredients</label>
-                      <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Enter product highlights..." rows={3} className="w-full text-xs font-medium py-2.5 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900/10 placeholder:text-gray-300 resize-none" />
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Description</label>
+                      <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Product highlights..." rows={3} className="w-full text-xs font-medium py-2.5 px-3 bg-white border border-gray-200 rounded-xl resize-none" />
                     </div>
 
-                    <button type="submit" disabled={isUploading} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-black hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    <button type="submit" disabled={isUploading} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2">
                       {isUploading ? <Loader2 className="animate-spin" size={16} /> : (editingMenuId ? <CheckCircle2 size={16} /> : <Package size={16} />)}
                       {editingMenuId ? "Commit Changes" : "Deploy to Catalog"}
                     </button>
@@ -1740,7 +1691,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                    <h2 className="text-lg font-bold text-gray-900">Live Catalog</h2>
-                   <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-500 rounded-full border border-gray-200">{items.length} Items</span>
+                   <span className="px-2 py-0.5 bg-gray-100 text-[10px] font-bold text-gray-500 rounded-full border border-gray-200">{items.filter(i => !i.id.startsWith('sub_')).length} Items</span>
                    <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-[10px] font-bold text-emerald-600 rounded-full border border-emerald-100">
                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
                      Real-time
@@ -1752,6 +1703,128 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                   </button>
                 </div>
               </div>
+
+              {/* Dedicated Subscription Plans Section */}
+              {!loading && subItems.length > 0 && (
+                <div className="mb-8 p-6 bg-indigo-50 border border-indigo-100 rounded-3xl relative z-20">
+                   <div className="flex items-center justify-between mb-5">
+                      <div>
+                         <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest">Subscription Plans</h3>
+                         <p className="text-[10px] font-bold text-indigo-500/80 uppercase mt-0.5">Edit Weekly & Monthly prices here</p>
+                      </div>
+                      <div className="flex gap-1">
+                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-300"></div>
+                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-200"></div>
+                      </div>
+                   </div>
+                   <div className="flex flex-col gap-4">
+                      {subItems.map(sub => {
+                        const isEditingThis = editingMenuId === sub.id;
+                        return (
+                          <div key={sub.id} className={`bg-white border ${isEditingThis ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-indigo-200/50'} rounded-3xl transition-all shadow-sm hover:shadow-xl overflow-hidden relative z-30 group`}>
+                             {/* Background Image Layer */}
+                             <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <img src={sub.image || "/images/subscription_premium.jpg"} alt="" className="w-full h-full object-cover" />
+                             </div>
+                             
+                             <div className="relative z-10 p-5">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                     <div className={`w-12 h-12 ${isEditingThis ? 'bg-indigo-900' : 'bg-indigo-600'} rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg transition-colors`}>
+                                        {sub.image ? (
+                                          <img src={sub.image} alt="" className="w-full h-full object-cover rounded-2xl" />
+                                        ) : (
+                                          <Star size={20} fill="currentColor" />
+                                        )}
+                                     </div>
+                                     <div>
+                                        <h4 className="text-base font-black text-gray-900">{sub.name}</h4>
+                                        {!isEditingThis && (
+                                          <div className="flex items-baseline gap-2 mt-0.5">
+                                             <span className="text-sm font-mono font-bold text-indigo-600">{rupee}{sub.offerPrice}</span>
+                                             {sub.mrp > sub.offerPrice && <span className="text-[10px] font-mono text-gray-400 line-through">{rupee}{sub.mrp}</span>}
+                                          </div>
+                                        )}
+                                     </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                     {isEditingThis ? (
+                                        <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); resetMenuForm(); }} className="px-4 py-2 bg-gray-100 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all">Cancel</button>
+                                     ) : (
+                                        <div 
+                                          role="button"
+                                          tabIndex={0}
+                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditClick(sub); }}
+                                          className="px-5 py-2.5 bg-indigo-600 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xl shadow-indigo-100"
+                                        >
+                                          <Pencil size={12} /> Edit Plan
+                                        </div>
+                                     )}
+                                  </div>
+                                </div>
+
+                                {/* Expandable Edit Bar */}
+                                {isEditingThis && (
+                                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-5 pt-5 border-t border-indigo-100/50 space-y-6">
+                                      {/* Image Edit Section */}
+                                      <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-indigo-900/40 uppercase tracking-[0.2em]">Update Plan Visual</label>
+                                        <div className="flex items-center gap-4">
+                                          <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/30 overflow-hidden relative group/img">
+                                            {image ? (
+                                              <img src={image} alt="Preview" className="w-full h-full object-cover mix-blend-multiply" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center text-indigo-300">
+                                                <Package size={24} />
+                                              </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                              <Upload size={16} className="text-white" />
+                                            </div>
+                                          </div>
+                                          <div className="flex-1 space-y-2">
+                                            <button 
+                                              type="button" 
+                                              onClick={() => fileInputRef.current?.click()}
+                                              className="px-4 py-2 bg-white border border-indigo-200 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all flex items-center gap-2"
+                                            >
+                                              <Upload size={12} /> {isUploading ? 'Uploading...' : 'Upload New Image'}
+                                            </button>
+                                            <p className="text-[9px] text-indigo-400 font-medium">Recommended: 4:5 aspect ratio, clean background.</p>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-4">
+                                         <div>
+                                            <label className="block text-[10px] font-black text-indigo-900/40 uppercase tracking-[0.2em] mb-2">Original MRP ({rupee})</label>
+                                            <input type="number" value={mrp} onChange={e => setMrp(e.target.value)} className="w-full text-xs font-mono font-bold py-3 px-4 bg-indigo-50/50 border border-indigo-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none transition-all" />
+                                         </div>
+                                         <div>
+                                            <label className="block text-[10px] font-black text-indigo-900/40 uppercase tracking-[0.2em] mb-2">Current Live Price ({rupee})</label>
+                                            <input type="number" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} className="w-full text-xs font-mono font-bold py-3 px-4 bg-white border border-indigo-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm" />
+                                         </div>
+                                      </div>
+                                      <div className="flex justify-end gap-3">
+                                         <button 
+                                           type="button"
+                                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveMenu(e); }}
+                                           disabled={loading || isUploading}
+                                           className="w-full py-4 bg-black hover:bg-indigo-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all shadow-2xl shadow-indigo-200 active:scale-95"
+                                         >
+                                           {loading ? "Syncing..." : isUploading ? "Waiting for upload..." : "Commit Plan Updates"}
+                                         </button>
+                                      </div>
+                                   </motion.div>
+                                )}
+                             </div>
+                          </div>
+                        );
+                      })}
+                   </div>
+                </div>
+              )}
 
               {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1772,7 +1845,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {items.map((item) => {
+                  {regItems.map((item) => {
                     const discount = Math.round(((item.mrp - (item.offerPrice ?? item.price)) / item.mrp) * 100);
                     return (
                       <div key={item.id} className={`group bg-white border ${item.isArchived ? 'border-red-50 opacity-75 grayscale-[0.5]' : (item.inStock === false || item.inventory <= 0) ? 'border-red-200 bg-red-50/30 shadow-none' : 'border-gray-100 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50'} rounded-2xl overflow-hidden transition-all duration-300 flex flex-col relative`}>
@@ -1827,10 +1900,10 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                                       </button>
                                    </div>
                                 )}
-                                <button onClick={() => handleEditClick(item)} className="p-2 text-black hover:bg-gray-100 rounded-lg transition-all">
+                                <button type="button" onClick={() => handleEditClick(item)} className="p-2 text-black hover:bg-gray-100 rounded-lg transition-all">
                                    <Pencil size={14} />
                                 </button>
-                                <button onClick={() => {
+                                <button type="button" onClick={() => {
                                    if (item.isArchived) {
                                      handleToggleArchiveMenu(item.id, true);
                                    } else {
@@ -1854,15 +1927,17 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                                >
                                  <div className="flex items-center justify-between mb-1">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Removal Options</span>
-                                    <button onClick={() => setDeletingMenuItem(null)} className="text-gray-400 hover:text-black p-1"><X size={12}/></button>
+                                    <button type="button" onClick={() => setDeletingMenuItem(null)} className="text-gray-400 hover:text-black p-1"><X size={12}/></button>
                                  </div>
                                  <button 
+                                   type="button"
                                    onClick={() => handleToggleArchiveMenu(item.id, false)}
                                    className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                  >
                                    Archive Item
                                  </button>
                                  <button 
+                                   type="button"
                                    onClick={() => handleDeletePermanently(item.id)}
                                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-200"
                                  >

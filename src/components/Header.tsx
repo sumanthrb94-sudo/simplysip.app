@@ -58,7 +58,7 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
 
         <div className="shrink-0 flex justify-center">
           <button onClick={() => window.location.reload()} className="flex items-baseline cursor-pointer">
-            <div className="text-lg sm:text-xl md:text-2xl font-extrabold tracking-[0.32em] sm:tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
+            <div className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-[0.32em] sm:tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
               SIMPLYSIP
             </div>
             <span className="ml-2 text-xl sm:text-2xl md:text-3xl text-[#1D1C1A] font-script font-semibold tracking-[0.08em] uppercase hidden sm:inline-block">

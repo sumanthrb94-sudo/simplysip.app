@@ -1,7 +1,7 @@
 export interface MenuItem {
   id: string;
   day: string;
-  category: "Signature Blends" | "Single Fruit Series";
+  category: "Signature Blends" | "Single Fruit Series" | "Subscriptions";
   name: string;
   desc: string;
   image: string;

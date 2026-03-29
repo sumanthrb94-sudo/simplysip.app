@@ -9,28 +9,29 @@ export interface Product {
   name: string;
   desc: string;
   image: string;
-  category: "Signature Blends" | "Single Fruit Series";
+  category: "Signature Blends" | "Single Fruit Series" | "Subscriptions";
   mrp: number;
   offerPrice: number;
   price: number;
   discountPercent?: number;
   inStock?: boolean;
   inventory?: number;
-  tagline: string;
-  bestSeller: boolean;
-  sweetness: number;
-  nutrition: NutritionInfo;
-  benefits: string[];
-  ingredients: string[];
+  tagline?: string;
+  bestSeller?: boolean;
+  sweetness?: number;
+  nutrition?: NutritionInfo;
+  benefits?: string[];
+  ingredients?: string[];
   createdAt?: number;
 }
 
 export interface SubscriptionProduct {
-  id: "sub_weekly" | "sub_monthly";
-  name: "Weekly Subscription" | "Monthly Subscription";
+  id: "sub_weekly" | "sub_monthly" | string;
+  name: string;
   desc: string;
   mrp: number;
   offerPrice: number;
+  category: "Subscriptions";
 }
 
 export type CartItem = Product | SubscriptionProduct;

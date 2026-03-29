@@ -19,6 +19,27 @@ import { Product, UserProfile, Order } from './types';
 import { seedMenu } from './data/seedMenu';
 import { getOfferPrice } from './pricing';
 
+const SUBSCRIPTION_SEEDS = [
+  { 
+    id: "sub_weekly", 
+    name: "Weekly Subscription", 
+    mrp: 999, 
+    offerPrice: 799,
+    category: "Subscriptions",
+    image: "/images/hero-lineup.png",
+    desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
+  },
+  { 
+    id: "sub_monthly", 
+    name: "Monthly Subscription", 
+    mrp: 3599, 
+    offerPrice: 2599,
+    category: "Subscriptions",
+    image: "/images/hero.jpeg",
+    desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
+  }
+];
+
 export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -269,13 +290,21 @@ export default function App() {
           setMenuItems(data.filter((item: any) => !item.isArchived));
         } else {
           console.log("APP: Menu snapshot empty, using seed data");
-          setMenuItems(seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)));
+          const seeds = [
+            ...seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
+            ...SUBSCRIPTION_SEEDS as any
+          ];
+          setMenuItems(seeds);
         }
       },
       (err) => {
         console.error("Menu realtime update failed:", err);
         // Fallback to static seed data on error
-        setMenuItems(seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)));
+        const seeds = [
+          ...seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
+          ...SUBSCRIPTION_SEEDS as any
+        ];
+        setMenuItems(seeds);
       }
     );
 
@@ -678,6 +707,7 @@ export default function App() {
             <div id="subscriptions">
               <Subscription 
                 onSubscribe={(plan) => handleSubscription(plan)}
+                subscriptionItems={menuItems.filter(item => item.id.startsWith('sub_')) as any}
               />
             </div>
             <Story />
@@ -691,7 +721,12 @@ export default function App() {
               cartTotal={menuTotal}
             />
 
-            {isPlanOpen && (
+            {isPlanOpen && (() => {
+              const subWeekly = menuItems.find(i => i.id === 'sub_weekly') || SUBSCRIPTION_SEEDS[0];
+              const subMonthly = menuItems.find(i => i.id === 'sub_monthly') || SUBSCRIPTION_SEEDS[1];
+              const rupee = "\u20B9";
+
+              return (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -717,18 +752,22 @@ export default function App() {
                   <div className="space-y-4">
                     <button
                       onClick={() => handleSubscription("weekly")}
-                      className="w-full text-left border border-black/10 rounded-3xl p-5 hover:border-black/20 transition-colors"
+                      className="group w-full text-left relative overflow-hidden rounded-3xl p-6 border border-black/5 shadow-sm hover:border-black/20 hover:shadow-md transition-all"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="absolute inset-0 z-0">
+                        <img src={subWeekly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-white/75" />
+                      </div>
+                      <div className="relative z-10 flex items-center justify-between">
                         <div>
                           <div className="text-sm uppercase tracking-[0.3em] text-[#6F6A63] mb-1">Weekly Plan</div>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-sm text-[#A7A29C] line-through font-medium">{"\u20B9"}999</span>
-                            <span className="text-lg font-semibold text-[#1D1C1A] font-display">{"\u20B9"}799 / week</span>
+                            <span className="text-sm text-[#A7A29C] line-through font-medium">{rupee}{subWeekly.mrp}</span>
+                            <span className="text-lg font-semibold text-[#1D1C1A] font-display">{rupee}{subWeekly.offerPrice} / week</span>
                           </div>
-                          <div className="text-xs text-[#6F6A63]">7 cold-pressed juices (200 ml each)</div>
+                          <div className="text-xs text-[#6F6A63] mt-1">{subWeekly.desc}</div>
                         </div>
-                        <span className="pointer-events-none inline-flex items-center justify-center min-w-[140px] px-5 sm:px-6 py-2.5 bg-[#1D1C1A] text-white rounded-full font-semibold tracking-[0.2em] uppercase text-[10px]">
+                        <span className="pointer-events-none inline-flex items-center justify-center min-w-[140px] px-5 sm:px-6 py-2.5 bg-[#1D1C1A] text-white rounded-full font-semibold tracking-[0.2em] uppercase text-[10px] shadow-lg group-hover:bg-black transition-colors">
                           Subscribe Now
                         </span>
                       </div>
@@ -736,21 +775,25 @@ export default function App() {
 
                     <button
                       onClick={() => handleSubscription("monthly")}
-                      className="w-full text-left border border-black/10 rounded-3xl p-5 hover:border-black/20 transition-colors"
+                      className="group w-full text-left relative overflow-hidden rounded-3xl p-6 border border-white/5 shadow-sm hover:border-white/20 hover:shadow-md transition-all text-white"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="absolute inset-0 z-0">
+                        <img src={subMonthly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-[#1D1C1A]/72" />
+                      </div>
+                      <div className="relative z-10 flex items-center justify-between">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm uppercase tracking-[0.3em] text-[#6F6A63]">Monthly Plan</span>
-                            <span className="bg-[#1D1C1A] text-white px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-[0.2em]">Best Value</span>
+                            <span className="text-sm uppercase tracking-[0.3em] text-white/70">Monthly Plan</span>
+                            <span className="bg-yellow-400 text-black px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-[0.2em]">Best Value</span>
                           </div>
                           <div className="flex items-baseline gap-2">
-                            <span className="text-sm text-[#A7A29C] line-through font-medium">{"\u20B9"}3599</span>
-                            <span className="text-lg font-semibold text-[#1D1C1A] font-display">{"\u20B9"}2599 / month</span>
+                            <span className="text-sm text-white/50 line-through font-medium">{rupee}{subMonthly.mrp}</span>
+                            <span className="text-lg font-semibold text-white font-display">{rupee}{subMonthly.offerPrice} / month</span>
                           </div>
-                          <div className="text-xs text-[#6F6A63]">30 cold-pressed juices (200 ml each)</div>
+                          <div className="text-xs text-white/70 mt-1">{subMonthly.desc}</div>
                         </div>
-                        <span className="pointer-events-none inline-flex items-center justify-center min-w-[140px] px-5 sm:px-6 py-2.5 bg-[#1D1C1A] text-white rounded-full font-semibold tracking-[0.2em] uppercase text-[10px]">
+                        <span className="pointer-events-none inline-flex items-center justify-center min-w-[140px] px-5 sm:px-6 py-2.5 bg-white text-[#1D1C1A] rounded-full font-semibold tracking-[0.2em] uppercase text-[10px] shadow-lg group-hover:bg-gray-100 transition-colors">
                           Subscribe Now
                         </span>
                       </div>
@@ -758,7 +801,8 @@ export default function App() {
                   </div>
                 </motion.div>
               </motion.div>
-            )}
+              );
+            })()}
 
             <AuthModal
               isOpen={isAuthOpen}

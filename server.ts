@@ -113,7 +113,7 @@ app.post("/api/menu", authenticate, checkAdmin, async (req, res) => {
   if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
     res.status(400).json({ error: "Invalid name" }); return;
   }
-  if (!["Signature Blends", "Single Fruit Series"].includes(category)) {
+  if (!["Signature Blends", "Single Fruit Series", "Subscriptions"].includes(category)) {
     res.status(400).json({ error: "Invalid category" }); return;
   }
   if (typeof mrp !== "number" || mrp <= 0 || mrp > 10000) {

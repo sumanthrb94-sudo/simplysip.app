@@ -66,23 +66,7 @@ const SERVICEABLE_ZONES = [
 
 const BULLET = "\u2022";
 
-const SUBSCRIPTION_ITEMS: SubscriptionProduct[] = [
-  { 
-    id: "sub_weekly", 
-    name: "Weekly Subscription", 
-    mrp: 999, 
-    offerPrice: 799,
-    desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
-  },
-  { 
-    id: "sub_monthly", 
-    name: "Monthly Subscription", 
-    mrp: 3599, 
-    offerPrice: 2599,
-    desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
-  }
-];
-
+// Subscription items are now fetched from Firestore and passed via menuItems prop
 function IngredientTicker({ desc }: { desc?: string }) {
   if (!desc) return null;
 
@@ -123,7 +107,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     address: user?.address || '',
     area: user?.area || ''
   });
-  const [addressType, setAddressType] = useState(user?.addressType || 'Home');
+  const [addressType, setAddressType] = useState<'Home' | 'Office' | 'Other'>(user?.addressType || 'Home');
   const [isAddressLocked, setIsAddressLocked] = useState(false);
   const [isServiceable, setIsServiceable] = useState<boolean>(true);
   const [location, setLocation] = useState(user?.location || "");
@@ -316,7 +300,8 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
     }
   }, [user?.location]);
 
-  const allItems: (Product | SubscriptionProduct)[] = [...SUBSCRIPTION_ITEMS, ...menuItems];
+  const subscriptionProducts = menuItems.filter(item => item.id.startsWith('sub_'));
+  const allItems: (Product | SubscriptionProduct)[] = [...menuItems];
   const cartItems = allItems.filter(item => cart[item.id]);
   const cartCount = cartItems.reduce((sum: number, item) => sum + (cart[item.id] ?? 0), 0);
   const cartTotal = cartItems.reduce((sum: number, item) => {
@@ -840,7 +825,7 @@ export default function Checkout({ user, onBack, cart, menuItems, onClearCart, o
                   <div className="space-y-3">
                     <label className="block text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 ml-1">Save Address As</label>
                     <div className="flex gap-3">
-                      {['Home', 'Office', 'Other'].map(type => {
+                      {(['Home', 'Office', 'Other'] as const).map(type => {
                         const Icon = type === 'Office' ? Briefcase : type === 'Home' ? Home : MapPin;
                         return (
                           <button
