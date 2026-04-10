@@ -755,7 +755,7 @@ export default function App() {
                       className="group w-full text-left relative overflow-hidden rounded-3xl p-6 border border-black/5 shadow-sm hover:border-black/20 hover:shadow-md transition-all"
                     >
                       <div className="absolute inset-0 z-0">
-                        <img src={subWeekly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={subWeekly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" decoding="async" />
                         <div className="absolute inset-0 bg-white/75" />
                       </div>
                       <div className="relative z-10 flex items-center justify-between">
@@ -778,7 +778,7 @@ export default function App() {
                       className="group w-full text-left relative overflow-hidden rounded-3xl p-6 border border-white/5 shadow-sm hover:border-white/20 hover:shadow-md transition-all text-white"
                     >
                       <div className="absolute inset-0 z-0">
-                        <img src={subMonthly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <img src={subMonthly.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" decoding="async" />
                         <div className="absolute inset-0 bg-[#1D1C1A]/72" />
                       </div>
                       <div className="relative z-10 flex items-center justify-between">

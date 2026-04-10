@@ -141,6 +141,7 @@ function MenuCard({
             className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'grayscale opacity-60' : ''}`}
             referrerPolicy="no-referrer"
             loading="lazy"
+            decoding="async"
           />
           {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
@@ -276,6 +277,8 @@ function ProductPanel({
                 src={product.image}
                 alt={product.name}
                 className="w-full h-full object-cover object-[center_50%] scale-[1.15] sm:scale-105 drop-shadow-2xl mix-blend-multiply transition-transform duration-700 group-hover:scale-[1.20] sm:group-hover:scale-[1.10]"
+                loading="lazy"
+                decoding="async"
               />
               <button 
                 onClick={onClose} 

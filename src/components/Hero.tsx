@@ -72,6 +72,7 @@ export default function Hero({ onSubscribe }: HeroProps) {
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
                 fetchPriority="high"
+                decoding="async"
               />
             </div>
             <div className="absolute -bottom-5 sm:-bottom-6 -left-4 sm:-left-6 bg-white/95 backdrop-blur px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border border-black/5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.45)]">
