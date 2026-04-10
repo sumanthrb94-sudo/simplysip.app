@@ -1725,7 +1725,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                           <div key={sub.id} className={`bg-white border ${isEditingThis ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-indigo-200/50'} rounded-3xl transition-all shadow-sm hover:shadow-xl overflow-hidden relative z-30 group`}>
                              {/* Background Image Layer */}
                              <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                                <img src={sub.image || "/images/subscription_premium.webp"} alt="" className="w-full h-full object-cover" />
+                                <img src={sub.image || "/images/subscription_premium.webp"} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                              </div>
                              
                              <div className="relative z-10 p-5">
@@ -1733,7 +1733,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                                   <div className="flex items-center gap-4">
                                      <div className={`w-12 h-12 ${isEditingThis ? 'bg-indigo-900' : 'bg-indigo-600'} rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg transition-colors`}>
                                         {sub.image ? (
-                                          <img src={sub.image} alt="" className="w-full h-full object-cover rounded-2xl" />
+                                          <img src={sub.image} alt="" className="w-full h-full object-cover rounded-2xl" loading="lazy" decoding="async" />
                                         ) : (
                                           <Star size={20} fill="currentColor" />
                                         )}
@@ -1856,7 +1856,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                         )}
                         {/* Card Media */}
                         <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply group-hover:scale-110 transition-transform duration-500" loading="lazy" decoding="async" />
                           <div className="absolute top-3 left-3 flex flex-col gap-1.5">
                             <span className={`px-2 py-0.5 ${item.category === "Signature Blends" ? 'bg-black text-white' : 'bg-emerald-500 text-white'} text-[9px] font-black uppercase tracking-widest rounded shadow-sm w-fit`}>
                               {item.category === "Signature Blends" ? "Blend" : "Pure"}
