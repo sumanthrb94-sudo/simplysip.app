@@ -26,7 +26,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 999, 
     offerPrice: 799,
     category: "Subscriptions",
-    image: "/images/hero-lineup.png",
+    image: "/images/hero-lineup.webp",
     desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
   },
   { 
@@ -35,7 +35,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 3599, 
     offerPrice: 2599,
     category: "Subscriptions",
-    image: "/images/hero.jpeg",
+    image: "/images/hero.webp",
     desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
   }
 ];

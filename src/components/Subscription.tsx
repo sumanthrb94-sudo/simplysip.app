@@ -19,7 +19,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
     name: "Weekly Detox",
     mrp: 999,
     offerPrice: 799,
-    image: "/images/hero-lineup.png",
+    image: "/images/hero-lineup.webp",
     desc: "7 cold-pressed juices (200 ml each)"
   };
   
@@ -27,7 +27,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
     name: "Monthly Cleanse",
     mrp: 3599,
     offerPrice: 2599,
-    image: "/images/hero.jpeg",
+    image: "/images/hero.webp",
     desc: "30 cold-pressed juices (200 ml each)"
   };
 
@@ -37,7 +37,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
     <section id="subscriptions" className="relative py-24 sm:py-32 px-4 sm:px-6 overflow-hidden scroll-mt-10">
       <div className="absolute inset-0 z-0">
         <img
-          src="/images/site-bg.jpg"
+          src="/images/site-bg.webp"
           alt="Premium SimplySip background"
           className="w-full h-full object-cover"
           loading="lazy"

@@ -370,7 +370,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         mrp: 999, 
         offerPrice: 799,
         category: "Subscriptions",
-        image: "/images/hero-lineup.png",
+        image: "/images/hero-lineup.webp",
         desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
       },
       { 
@@ -379,7 +379,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         mrp: 3599, 
         offerPrice: 2599,
         category: "Subscriptions",
-        image: "/images/hero.jpeg",
+        image: "/images/hero.webp",
         desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
       }
     ];
@@ -1725,7 +1725,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
                           <div key={sub.id} className={`bg-white border ${isEditingThis ? 'border-indigo-500 ring-4 ring-indigo-50' : 'border-indigo-200/50'} rounded-3xl transition-all shadow-sm hover:shadow-xl overflow-hidden relative z-30 group`}>
                              {/* Background Image Layer */}
                              <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                                <img src={sub.image || "/images/subscription_premium.jpg"} alt="" className="w-full h-full object-cover" />
+                                <img src={sub.image || "/images/subscription_premium.webp"} alt="" className="w-full h-full object-cover" />
                              </div>
                              
                              <div className="relative z-10 p-5">
