@@ -140,6 +140,7 @@ function MenuCard({
             alt={product.name}
             className={`w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 ${(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'grayscale opacity-60' : ''}`}
             referrerPolicy="no-referrer"
+            loading="lazy"
           />
           {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">

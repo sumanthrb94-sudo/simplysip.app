@@ -66,11 +66,12 @@ export default function Hero({ onSubscribe }: HeroProps) {
             className="relative"
           >
             <div className="aspect-[4/5] sm:aspect-[3/4] rounded-[2.2rem] sm:rounded-[2.8rem] overflow-hidden bg-white shadow-[0_50px_120px_-70px_rgba(0,0,0,0.45)] border border-black/5">
-              <img 
-                src="/images/hero.jpeg" 
-                alt="Glass bottled. Moisture sealed." 
+              <img
+                src="/images/hero.jpeg"
+                alt="Glass bottled. Moisture sealed."
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                fetchPriority="high"
               />
             </div>
             <div className="absolute -bottom-5 sm:-bottom-6 -left-4 sm:-left-6 bg-white/95 backdrop-blur px-5 sm:px-6 py-3 sm:py-4 rounded-2xl border border-black/5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.45)]">

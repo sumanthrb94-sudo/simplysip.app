@@ -36,10 +36,11 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
   return (
     <section id="subscriptions" className="relative py-24 sm:py-32 px-4 sm:px-6 overflow-hidden scroll-mt-10">
       <div className="absolute inset-0 z-0">
-        <img 
-          src="/images/site-bg.jpg" 
-          alt="Premium SimplySip background" 
+        <img
+          src="/images/site-bg.jpg"
+          alt="Premium SimplySip background"
           className="w-full h-full object-cover"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm"></div>
       </div>
@@ -63,7 +64,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
             <div className="p-8 sm:p-10 rounded-[2.5rem] border border-black/5 shadow-[0_30px_70px_-55px_rgba(0,0,0,0.35)] text-center relative overflow-hidden flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300 group">
               {/* Background image */}
               <div className="absolute inset-0 z-0">
-                <img src={weekly.image} alt="" className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700" />
+                <img src={weekly.image} alt="" className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700" loading="lazy" />
                 <div className="absolute inset-0" style={{ background: 'rgba(255,255,255,0.65)' }} />
               </div>
               <div className="relative z-10">
@@ -88,7 +89,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
             <div className="p-8 sm:p-10 rounded-[2.5rem] border border-white/10 text-white shadow-[0_30px_70px_-30px_rgba(0,0,0,0.5)] text-center relative overflow-hidden flex flex-col justify-between hover:-translate-y-1 transition-transform duration-300 group">
               {/* Background image */}
               <div className="absolute inset-0 z-0">
-                <img src={monthly.image} alt="" className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700" />
+                <img src={monthly.image} alt="" className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700" loading="lazy" />
                 <div className="absolute inset-0" style={{ background: 'rgba(29,28,26,0.65)' }} />
               </div>
               <div className="absolute top-0 right-0 z-20 bg-yellow-400 text-black text-[9px] font-bold uppercase tracking-widest px-4 py-2 rounded-bl-2xl">
