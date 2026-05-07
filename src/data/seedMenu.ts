@@ -22,8 +22,8 @@ export const LOCAL_PRODUCT_IMAGES: Record<string, string> = {
   "Normal Fruit Bowl - Monthly": "/images/subscription-normal-fruit-bowl.webp",
   "Exotic Fruit Bowl - Weekly": "/images/subscription-exotic-fruit-bowl.webp",
   "Exotic Fruit Bowl - Monthly": "/images/subscription-exotic-fruit-bowl.webp",
-  "Weekly Subscription": "/images/subscription-normal-fruit-bowl.webp",
-  "Monthly Subscription": "/images/subscription-normal-fruit-bowl.webp"
+  "Weekly Subscription": "/images/subscription-juice.webp",
+  "Monthly Subscription": "/images/subscription-juice.webp"
 };
 
 export const FALLBACK_PRODUCT_IMAGE = "/images/hero-lineup.webp";
