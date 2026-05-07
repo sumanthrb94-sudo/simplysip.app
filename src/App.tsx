@@ -20,23 +20,41 @@ import { seedMenu } from './data/seedMenu';
 import { getOfferPrice } from './pricing';
 
 const SUBSCRIPTION_SEEDS = [
-  { 
-    id: "sub_weekly", 
-    name: "Weekly Subscription", 
-    mrp: 999, 
-    offerPrice: 799,
+  {
+    id: "sub_normal_weekly",
+    name: "Normal Fruit Bowl - Weekly",
+    mrp: 1260,
+    offerPrice: 899,
     category: "Subscriptions",
-    image: "/images/hero-lineup.webp",
-    desc: "1 cold-pressed juice (200 ml) delivered daily for 7 days"
+    image: "/images/subscription-normal-fruit-bowl.webp",
+    desc: "Fresh fruit bowl (450g) delivered daily for 7 days"
   },
-  { 
-    id: "sub_monthly", 
-    name: "Monthly Subscription", 
-    mrp: 3599, 
-    offerPrice: 2599,
+  {
+    id: "sub_normal_monthly",
+    name: "Normal Fruit Bowl - Monthly",
+    mrp: 4799,
+    offerPrice: 3299,
     category: "Subscriptions",
-    image: "/images/hero.webp",
-    desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
+    image: "/images/subscription-normal-fruit-bowl.webp",
+    desc: "Fresh fruit bowl (450g) delivered daily for 30 days"
+  },
+  {
+    id: "sub_exotic_weekly",
+    name: "Exotic Fruit Bowl - Weekly",
+    mrp: 1890,
+    offerPrice: 1299,
+    category: "Subscriptions",
+    image: "/images/subscription-exotic-fruit-bowl.webp",
+    desc: "Premium exotic fruit bowl (500g) delivered daily for 7 days"
+  },
+  {
+    id: "sub_exotic_monthly",
+    name: "Exotic Fruit Bowl - Monthly",
+    mrp: 6999,
+    offerPrice: 4499,
+    category: "Subscriptions",
+    image: "/images/subscription-exotic-fruit-bowl.webp",
+    desc: "Premium exotic fruit bowl (500g) delivered daily for 30 days"
   }
 ];
 
@@ -61,7 +79,9 @@ export default function App() {
   const [selectedPlan, setSelectedPlan] = useState<"weekly" | "monthly">("weekly");
   const initialAuthResolved = useRef(false);
   const cartCount = Object.keys(cart).reduce((sum, id) => {
-    const isValid = id === 'sub_weekly' || id === 'sub_monthly' || menuItems.some(item => item.id === id);
+    const isSubscription = id.startsWith('sub_');
+    const isMenuItem = menuItems.some(item => item.id === id);
+    const isValid = isSubscription || isMenuItem;
     return sum + (isValid ? (cart[id] ?? 0) : 0);
   }, 0);
 
@@ -93,13 +113,17 @@ export default function App() {
     }
   }, []);
 
-  const handleSubscription = (plan: "weekly" | "monthly") => {
+  const handleSubscription = (subscriptionId: string) => {
     if (!requireAuth()) return;
     setCart((prev) => {
       const next = { ...prev };
-      delete next.sub_weekly;
-      delete next.sub_monthly;
-      next[plan === "weekly" ? "sub_weekly" : "sub_monthly"] = 1;
+      // Remove all existing subscriptions
+      Object.keys(next).forEach(key => {
+        if (key.startsWith('sub_')) {
+          delete next[key];
+        }
+      });
+      next[subscriptionId] = 1;
       return next;
     });
     setIsCheckoutOpen(true);
