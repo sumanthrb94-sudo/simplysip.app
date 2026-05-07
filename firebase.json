@@ -18,7 +18,7 @@
         "function": "api"
       },
       {
-        "source": "**",
+        "source": "!**/*.@(js|css|gif|jpg|jpeg|png|webp|svg|eot|otf|ttf|ttc|woff|woff2|font|map|json)",
         "destination": "/index.html"
       }
     ]
