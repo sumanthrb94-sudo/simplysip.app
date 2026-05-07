@@ -308,18 +308,17 @@ export default function App() {
     const unsubscribe = onSnapshot(
       menuRef,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const data: Product[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-          console.log("APP: Menu snapshot received, docs count:", data.length);
-          setMenuItems(data.filter((item: any) => !item.isArchived));
-        } else {
-          console.log("APP: Menu snapshot empty, using seed data");
-          const seeds = [
-            ...seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
-            ...SUBSCRIPTION_SEEDS as any
-          ];
-          setMenuItems(seeds);
-        }
+        const dbItems = !snapshot.empty
+          ? snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)).filter((item: any) => !item.isArchived)
+          : [];
+
+        const seeds = [
+          ...dbItems.length > 0 ? dbItems : seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
+          ...SUBSCRIPTION_SEEDS as any
+        ];
+
+        console.log("APP: Menu snapshot received, total items (including subscriptions):", seeds.length);
+        setMenuItems(seeds);
       },
       (err) => {
         console.error("Menu realtime update failed:", err);
