@@ -1,5 +1,39 @@
 const BULLET = "\u2022";
 
+// Maps known product names to their bundled local image so that broken or
+// missing remote URLs (e.g. expired Firebase Storage links) still render.
+export const LOCAL_PRODUCT_IMAGES: Record<string, string> = {
+  "Hulk Greens": "/images/hulk-greens.webp",
+  "Melon Booster": "/images/melon-booster.webp",
+  "ABC": "/images/abc.webp",
+  "A-Star": "/images/a-star.webp",
+  "AMG": "/images/amg.webp",
+  "Ganga Jamuna": "/images/ganga-jamuna.webp",
+  "Coco Fresh": "/images/coco-fresh.webp",
+  "Sunshine Sip": "/images/sunshine-sip.webp",
+  "Golden Sunrise": "/images/golden-sunrise.webp",
+  "Orchard Gold": "/images/orchard-gold.webp",
+  "Tropical Bliss": "/images/tropical-bliss.webp",
+  "Velvet Vine": "/images/velvet-vine.webp",
+  "Purple Crush": "/images/purple-crush.webp",
+  "Verjus": "/images/verjus.webp",
+  "Garden Joy": "/images/garden-joy.webp",
+  "Normal Fruit Bowl - Weekly": "/images/subscription-normal-fruit-bowl.webp",
+  "Normal Fruit Bowl - Monthly": "/images/subscription-normal-fruit-bowl.webp",
+  "Exotic Fruit Bowl - Weekly": "/images/subscription-exotic-fruit-bowl.webp",
+  "Exotic Fruit Bowl - Monthly": "/images/subscription-exotic-fruit-bowl.webp",
+  "Weekly Subscription": "/images/subscription-normal-fruit-bowl.webp",
+  "Monthly Subscription": "/images/subscription-normal-fruit-bowl.webp"
+};
+
+export const FALLBACK_PRODUCT_IMAGE = "/images/hero-lineup.webp";
+
+export const resolveProductImage = (item: { name?: string; image?: string } | null | undefined): string => {
+  if (!item) return FALLBACK_PRODUCT_IMAGE;
+  const localByName = item.name ? LOCAL_PRODUCT_IMAGES[item.name] : undefined;
+  return localByName || item.image || FALLBACK_PRODUCT_IMAGE;
+};
+
 export const seedMenu = [
   {
     category: "Signature Blends",

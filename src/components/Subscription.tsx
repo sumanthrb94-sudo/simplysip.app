@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
+import { resolveProductImage, FALLBACK_PRODUCT_IMAGE } from '../data/seedMenu';
 
 interface SubscriptionProps {
   onSubscribe: (subscriptionId: string) => void;
@@ -101,7 +102,19 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
                 >
                   {/* Background image */}
                   <div className="absolute inset-0 z-0">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+                    <img
+                      src={resolveProductImage(item)}
+                      alt={item.name}
+                      className="w-full h-full object-cover opacity-100 group-hover:scale-105 transition-transform duration-700"
+                      loading="lazy"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (!img.dataset.fallbackApplied) {
+                          img.dataset.fallbackApplied = 'true';
+                          img.src = FALLBACK_PRODUCT_IMAGE;
+                        }
+                      }}
+                    />
                     <div className="absolute inset-0" style={{ background: isDarkBg ? 'rgba(29,28,26,0.65)' : 'rgba(255,255,255,0.65)' }} />
                   </div>
 

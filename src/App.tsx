@@ -16,7 +16,7 @@ import { isSignInWithEmailLink, onAuthStateChanged, signInWithEmailLink, signOut
 import { collection, doc, getDoc, onSnapshot, query, updateDoc, setDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { Product, UserProfile, Order } from './types';
-import { seedMenu } from './data/seedMenu';
+import { seedMenu, resolveProductImage } from './data/seedMenu';
 import { getOfferPrice } from './pricing';
 
 const SUBSCRIPTION_SEEDS = [
@@ -309,11 +309,16 @@ export default function App() {
       menuRef,
       (snapshot) => {
         const dbItems = !snapshot.empty
-          ? snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)).filter((item: any) => !item.isArchived)
+          ? snapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() } as Product))
+              .filter((item: any) => !item.isArchived)
+              .map(item => ({ ...item, image: resolveProductImage(item) }))
           : [];
 
         const seeds = [
-          ...dbItems.length > 0 ? dbItems : seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
+          ...dbItems.length > 0
+            ? dbItems
+            : seedMenu.map((item, i) => ({ ...item, id: String(i + 1), image: resolveProductImage(item) } as Product)),
           ...SUBSCRIPTION_SEEDS as any
         ];
 
@@ -324,7 +329,7 @@ export default function App() {
         console.error("Menu realtime update failed:", err);
         // Fallback to static seed data on error
         const seeds = [
-          ...seedMenu.map((item, i) => ({ ...item, id: String(i + 1) } as Product)),
+          ...seedMenu.map((item, i) => ({ ...item, id: String(i + 1), image: resolveProductImage(item) } as Product)),
           ...SUBSCRIPTION_SEEDS as any
         ];
         setMenuItems(seeds);
