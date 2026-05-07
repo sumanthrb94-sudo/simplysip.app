@@ -18,6 +18,9 @@ export const LOCAL_PRODUCT_IMAGES: Record<string, string> = {
   "Purple Crush": "/images/purple-crush.webp",
   "Verjus": "/images/verjus.webp",
   "Garden Joy": "/images/garden-joy.webp",
+  "Regular Fruit Bowl - Weekly": "/images/subscription-normal-fruit-bowl.webp",
+  "Regular Fruit Bowl - Monthly": "/images/subscription-normal-fruit-bowl.webp",
+  // Legacy "Normal" names — kept so any unmigrated Firestore docs still resolve.
   "Normal Fruit Bowl - Weekly": "/images/subscription-normal-fruit-bowl.webp",
   "Normal Fruit Bowl - Monthly": "/images/subscription-normal-fruit-bowl.webp",
   "Exotic Fruit Bowl - Weekly": "/images/subscription-exotic-fruit-bowl.webp",

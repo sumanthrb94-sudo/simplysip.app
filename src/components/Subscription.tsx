@@ -18,7 +18,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
   const defaultItems = [
     {
       id: "sub_normal_weekly",
-      name: "Normal Fruit Bowl - Weekly",
+      name: "Regular Fruit Bowl - Weekly",
       mrp: 1260,
       offerPrice: 899,
       image: "/images/subscription-normal-fruit-bowl.webp",
@@ -26,7 +26,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
     },
     {
       id: "sub_normal_monthly",
-      name: "Normal Fruit Bowl - Monthly",
+      name: "Regular Fruit Bowl - Monthly",
       mrp: 4799,
       offerPrice: 3299,
       image: "/images/subscription-normal-fruit-bowl.webp",
@@ -77,7 +77,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
           <div className="text-center mb-8 sm:mb-12">
             <p className="text-[11px] tracking-[0.4em] uppercase text-[#6F6A63] mb-4">Subscribe & Save</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight text-[#1D1C1A] font-display">Fresh Fruit Bowls. Daily Delivery.</h2>
-            <p className="text-sm sm:text-base text-[#6F6A63] font-light mt-4">Choose Normal or Exotic. Weekly or Monthly. Free delivery every day.</p>
+            <p className="text-sm sm:text-base text-[#6F6A63] font-light mt-4">Choose Regular or Exotic. Weekly or Monthly. Free delivery every day.</p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
@@ -127,7 +127,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
 
                   <div className="relative z-10">
                     <p className={`text-[11px] tracking-[0.4em] uppercase mb-2 font-bold ${isDarkBg ? 'text-white/50' : 'text-[#6F6A63]'}`}>
-                      {isWeekly ? '7 Days' : '30 Days'} {isExotic ? '• Exotic' : '• Normal'}
+                      {isWeekly ? '7 Days' : '30 Days'} {isExotic ? '• Exotic' : '• Regular'}
                     </p>
                     <h3 className={`text-xl sm:text-2xl font-bold tracking-tight font-display mb-2 ${isDarkBg ? 'text-white' : 'text-[#1D1C1A]'}`}>{item.name}</h3>
                     <p className={`text-xs sm:text-sm font-medium mb-6 ${isDarkBg ? 'text-white/70' : 'text-[#6F6A63]'}`}>{item.desc}</p>

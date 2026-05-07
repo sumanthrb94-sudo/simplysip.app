@@ -22,7 +22,7 @@ import { getOfferPrice } from './pricing';
 const SUBSCRIPTION_SEEDS = [
   {
     id: "sub_normal_weekly",
-    name: "Normal Fruit Bowl - Weekly",
+    name: "Regular Fruit Bowl - Weekly",
     mrp: 1260,
     offerPrice: 899,
     category: "Subscriptions",
@@ -31,7 +31,7 @@ const SUBSCRIPTION_SEEDS = [
   },
   {
     id: "sub_normal_monthly",
-    name: "Normal Fruit Bowl - Monthly",
+    name: "Regular Fruit Bowl - Monthly",
     mrp: 4799,
     offerPrice: 3299,
     category: "Subscriptions",
@@ -308,11 +308,13 @@ export default function App() {
     const unsubscribe = onSnapshot(
       menuRef,
       (snapshot) => {
+        const normalizeName = (name?: string) =>
+          name ? name.replace(/\bNormal Fruit Bowl\b/gi, "Regular Fruit Bowl") : name;
         const dbItems = !snapshot.empty
           ? snapshot.docs
               .map(doc => ({ id: doc.id, ...doc.data() } as Product))
               .filter((item: any) => !item.isArchived)
-              .map(item => ({ ...item, image: resolveProductImage(item) }))
+              .map(item => ({ ...item, name: normalizeName(item.name) || item.name, image: resolveProductImage(item) }))
           : [];
 
         const seeds = [
