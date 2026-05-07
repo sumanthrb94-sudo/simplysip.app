@@ -26,7 +26,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 1260,
     offerPrice: 899,
     category: "Subscriptions",
-    image: "/images/subscription-normal-fruit-bowl.webp",
+    image: "/images/subscription-normal-fruit-bowl.svg",
     desc: "Fresh fruit bowl (450g) delivered daily for 7 days"
   },
   {
@@ -35,7 +35,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 4799,
     offerPrice: 3299,
     category: "Subscriptions",
-    image: "/images/subscription-normal-fruit-bowl.webp",
+    image: "/images/subscription-normal-fruit-bowl.svg",
     desc: "Fresh fruit bowl (450g) delivered daily for 30 days"
   },
   {
@@ -44,7 +44,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 1890,
     offerPrice: 1299,
     category: "Subscriptions",
-    image: "/images/subscription-exotic-fruit-bowl.webp",
+    image: "/images/subscription-exotic-fruit-bowl.svg",
     desc: "Premium exotic fruit bowl (500g) delivered daily for 7 days"
   },
   {
@@ -53,7 +53,7 @@ const SUBSCRIPTION_SEEDS = [
     mrp: 6999,
     offerPrice: 4499,
     category: "Subscriptions",
-    image: "/images/subscription-exotic-fruit-bowl.webp",
+    image: "/images/subscription-exotic-fruit-bowl.svg",
     desc: "Premium exotic fruit bowl (500g) delivered daily for 30 days"
   }
 ];
