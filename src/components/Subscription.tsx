@@ -20,7 +20,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
       name: "Normal Fruit Bowl - Weekly",
       mrp: 1260,
       offerPrice: 899,
-      image: "/images/subscription-normal-fruit-bowl.png",
+      image: "/images/subscription-normal-fruit-bowl.webp",
       desc: "Fresh fruit bowl (450g) delivered daily for 7 days"
     },
     {
@@ -28,7 +28,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
       name: "Normal Fruit Bowl - Monthly",
       mrp: 4799,
       offerPrice: 3299,
-      image: "/images/subscription-normal-fruit-bowl.png",
+      image: "/images/subscription-normal-fruit-bowl.webp",
       desc: "Fresh fruit bowl (450g) delivered daily for 30 days"
     },
     {
@@ -36,7 +36,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
       name: "Exotic Fruit Bowl - Weekly",
       mrp: 1890,
       offerPrice: 1299,
-      image: "/images/subscription-exotic-fruit-bowl.png",
+      image: "/images/subscription-exotic-fruit-bowl.webp",
       desc: "Premium exotic fruit bowl (500g) delivered daily for 7 days"
     },
     {
@@ -44,7 +44,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
       name: "Exotic Fruit Bowl - Monthly",
       mrp: 6999,
       offerPrice: 4499,
-      image: "/images/subscription-exotic-fruit-bowl.png",
+      image: "/images/subscription-exotic-fruit-bowl.webp",
       desc: "Premium exotic fruit bowl (500g) delivered daily for 30 days"
     }
   ];
