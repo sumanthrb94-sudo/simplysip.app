@@ -36,7 +36,7 @@ const SUBSCRIPTION_SEEDS = [
     offerPrice: 3299,
     category: "Subscriptions",
     image: "/images/subscription-normal-fruit-bowl.webp",
-    desc: "Fresh fruit bowl (450g) delivered daily for 30 days"
+    desc: "Fresh fruit bowl (450g) delivered daily for 28 days"
   },
   {
     id: "sub_exotic_weekly",
@@ -54,7 +54,7 @@ const SUBSCRIPTION_SEEDS = [
     offerPrice: 4499,
     category: "Subscriptions",
     image: "/images/subscription-exotic-fruit-bowl.webp",
-    desc: "Premium exotic fruit bowl (500g) delivered daily for 30 days"
+    desc: "Premium exotic fruit bowl (500g) delivered daily for 28 days"
   }
 ];
 

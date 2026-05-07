@@ -33,7 +33,7 @@ const DEFAULT_ITEMS: SubscriptionItem[] = [
     mrp: 4799,
     offerPrice: 3299,
     image: "/images/subscription-normal-fruit-bowl.webp",
-    desc: "Fresh fruit bowl (450g) delivered daily for 30 days"
+    desc: "Fresh fruit bowl (450g) delivered daily for 28 days"
   },
   {
     id: "sub_exotic_weekly",
@@ -49,7 +49,7 @@ const DEFAULT_ITEMS: SubscriptionItem[] = [
     mrp: 6999,
     offerPrice: 4499,
     image: "/images/subscription-exotic-fruit-bowl.webp",
-    desc: "Premium exotic fruit bowl (500g) delivered daily for 30 days"
+    desc: "Premium exotic fruit bowl (500g) delivered daily for 28 days"
   }
 ];
 
@@ -139,7 +139,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
                         transition={{ type: 'spring', bounce: 0.18, duration: 0.45 }}
                       />
                     )}
-                    <span className="relative">{p === 'weekly' ? '7 Days' : '30 Days'}</span>
+                    <span className="relative">{p === 'weekly' ? '7 Days' : '28 Days'}</span>
                     {p === 'monthly' && maxMonthlySavings > 0 && (
                       <span
                         className={`relative inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-extrabold tracking-[0.1em] ${
@@ -204,7 +204,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
 
                     <div className="relative z-10">
                       <p className={`text-[11px] tracking-[0.4em] uppercase mb-2 font-bold ${isDarkBg ? 'text-white/50' : 'text-[#6F6A63]'}`}>
-                        {isWeekly ? '7 Days' : '30 Days'} {isExotic ? '• Exotic' : '• Regular'}
+                        {isWeekly ? '7 Days' : '28 Days'} {isExotic ? '• Exotic' : '• Regular'}
                       </p>
                       <h3 className={`text-xl sm:text-2xl font-bold tracking-tight font-display mb-2 ${isDarkBg ? 'text-white' : 'text-[#1D1C1A]'}`}>{item.name}</h3>
                       <p className={`text-xs sm:text-sm font-medium mb-6 ${isDarkBg ? 'text-white/70' : 'text-[#6F6A63]'}`}>{item.desc}</p>

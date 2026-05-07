@@ -380,7 +380,7 @@ export default function AdminDashboard({ onBack, isAdminUser }: { onBack: () => 
         offerPrice: 2599,
         category: "Subscriptions",
         image: "/images/hero.webp",
-        desc: "1 cold-pressed juice (200 ml) delivered daily for 30 days"
+        desc: "1 cold-pressed juice (200 ml) delivered daily for 28 days"
       }
     ];
 
