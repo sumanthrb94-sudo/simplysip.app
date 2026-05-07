@@ -19,7 +19,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "Hulk Greens",
     desc: `Green Apple ${BULLET} Cucumber ${BULLET} Ginger ${BULLET} Spinach ${BULLET} Lime`,
-    image: "/images/hulk-greens.png",
+    image: "/images/hulk-greens.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -30,7 +30,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "Melon Booster",
     desc: `Watermelon ${BULLET} Cucumber ${BULLET} Mint`,
-    image: "/images/melon-booster.png",
+    image: "/images/melon-booster.webp",
     price: 89,
     mrp: 119,
     offerPrice: 89
@@ -41,7 +41,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "ABC",
     desc: `Apple ${BULLET} Beetroot ${BULLET} Carrot`,
-    image: "/images/abc.png",
+    image: "/images/abc.webp",
     price: 109,
     mrp: 149,
     offerPrice: 109
@@ -52,7 +52,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "A-Star",
     desc: `Apple ${BULLET} Pomegranate`,
-    image: "/images/a-star.png",
+    image: "/images/a-star.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -63,7 +63,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "AMG",
     desc: `Apple ${BULLET} Mint ${BULLET} Ginger`,
-    image: "/images/amg.png",
+    image: "/images/amg.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -74,7 +74,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Signature Blends",
     name: "Ganga Jamuna",
     desc: `Orange ${BULLET} Mosambi`,
-    image: "/images/ganga-jamuna.png",
+    image: "/images/ganga-jamuna.webp",
     price: 109,
     mrp: 149,
     offerPrice: 109
@@ -85,7 +85,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Coco Fresh",
     desc: "Tender Coconut Water",
-    image: "/images/coco-fresh.png",
+    image: "/images/coco-fresh.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -96,7 +96,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Sunshine Sip",
     desc: "Mosambi",
-    image: "/images/sunshine-sip.png",
+    image: "/images/sunshine-sip.webp",
     price: 109,
     mrp: 149,
     offerPrice: 109
@@ -107,7 +107,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Golden Sunrise",
     desc: "Orange",
-    image: "/images/golden-sunrise.png",
+    image: "/images/golden-sunrise.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -118,7 +118,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Orchard Gold",
     desc: "Apple",
-    image: "/images/orchard-gold.png",
+    image: "/images/orchard-gold.webp",
     price: 129,
     mrp: 179,
     offerPrice: 129
@@ -129,7 +129,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Tropical Bliss",
     desc: "Pineapple",
-    image: "/images/tropical-bliss.png",
+    image: "/images/tropical-bliss.webp",
     price: 119,
     mrp: 159,
     offerPrice: 119
@@ -140,7 +140,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Velvet Vine",
     desc: "Pomegranate",
-    image: "/images/velvet-vine.png",
+    image: "/images/velvet-vine.webp",
     price: 149,
     mrp: 199,
     offerPrice: 149
@@ -151,7 +151,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Purple Crush",
     desc: "Black Grapes",
-    image: "/images/purple-crush.png",
+    image: "/images/purple-crush.webp",
     price: 129,
     mrp: 179,
     offerPrice: 129
@@ -162,7 +162,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Verjus",
     desc: "Green Grapes",
-    image: "/images/verjus.png",
+    image: "/images/verjus.webp",
     price: 129,
     mrp: 179,
     offerPrice: 129
@@ -173,7 +173,7 @@ export const createSeedMenu = (): MenuItem[] => [
     category: "Single Fruit Series",
     name: "Garden Joy",
     desc: "Carrot",
-    image: "/images/garden-joy.png",
+    image: "/images/garden-joy.webp",
     price: 89,
     mrp: 119,
     offerPrice: 89
