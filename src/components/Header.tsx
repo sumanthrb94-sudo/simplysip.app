@@ -57,13 +57,14 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
         </div>
 
         <div className="shrink-0 flex justify-center">
-          <button onClick={() => window.location.reload()} className="flex items-baseline cursor-pointer">
-            <div className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-[0.32em] sm:tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
-              SIMPLYSIP
-            </div>
-            <span className="ml-2 text-xl sm:text-2xl md:text-3xl text-[#1D1C1A] font-script font-semibold tracking-[0.08em] uppercase hidden sm:inline-block">
-              ELIXIRS
-            </span>
+          <button onClick={() => window.location.reload()} className="flex items-center cursor-pointer" aria-label="SimplySip Elixirs home">
+            <img
+              src="/images/logo-header.png"
+              alt="SimplySip Elixirs"
+              width={180}
+              height={240}
+              className="h-12 sm:h-14 md:h-16 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
+            />
           </button>
         </div>
         
@@ -125,7 +126,7 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
             >
               <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
                 <div className="p-5 sm:p-6 bg-white border-b border-black/5 flex items-center justify-between mb-4 sticky top-0 z-10">
-                  <div className="text-xl font-extrabold tracking-[0.38em] text-[#1D1C1A] font-display uppercase">SIMPLYSIP</div>
+                  <img src="/images/logo-header.png" alt="SimplySip Elixirs" width={180} height={240} className="h-11 w-auto rounded-lg ring-1 ring-black/10 shadow-sm" />
                   <button onClick={() => setIsNavOpen(false)} className="p-2 bg-[#F9F8F6] rounded-full text-gray-500 hover:text-black hover:bg-gray-200 transition-colors">
                     <X size={16} />
                   </button>

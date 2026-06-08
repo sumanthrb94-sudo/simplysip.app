@@ -282,6 +282,13 @@ export default function AuthModal({ isOpen, mode, onClose, onModeChange }: AuthM
           >
             {/* Elegant Header Area */}
             <div className="flex items-center justify-between px-8 py-6 sm:px-12 sm:pt-12 sm:pb-8">
+              <img
+                src="/images/logo-header.png"
+                alt="SimplySip Elixirs"
+                width={180}
+                height={240}
+                className="h-12 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
+              />
               <button
                 onClick={onClose}
                 className="w-10 h-10 rounded-full border border-black/10 flex items-center justify-center text-gray-400 hover:text-black hover:border-black/30 transition-all bg-[#FAFAFA]"

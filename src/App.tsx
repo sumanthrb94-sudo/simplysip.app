@@ -625,14 +625,15 @@ export default function App() {
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center"
             >
-              <div className="flex items-baseline mb-8 relative pb-4">
-                <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-[0.38em] text-[#1D1C1A] font-display uppercase">
-                  SIMPLYSIP
-                </div>
-                <span className="ml-2 sm:ml-3 text-2xl sm:text-3xl md:text-4xl text-[#1D1C1A] font-script font-semibold tracking-[0.08em] uppercase">
-                  ELIXIRS
-                </span>
-                <motion.div 
+              <div className="flex flex-col items-center mb-8 relative pb-6">
+                <img
+                  src="/images/logo-hero.png"
+                  alt="SimplySip Elixirs"
+                  width={480}
+                  height={640}
+                  className="h-40 sm:h-48 md:h-56 w-auto rounded-3xl ring-1 ring-black/10 shadow-xl"
+                />
+                <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: "100%" }}
                   transition={{ duration: 1.2, ease: "easeInOut", delay: 0.2 }}
@@ -856,7 +857,14 @@ export default function App() {
               }}
             />
 
-            <footer className="py-12 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
+            <footer className="py-12 flex flex-col items-center gap-4 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
+              <img
+                src="/images/logo-header.png"
+                alt="SimplySip Elixirs"
+                width={180}
+                height={240}
+                className="h-16 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
+              />
               <p>(c) 2026 SIMPLY SIP. All rights reserved.</p>
             </footer>
           </motion.div>
