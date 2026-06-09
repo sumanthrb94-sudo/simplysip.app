@@ -57,14 +57,18 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
         </div>
 
         <div className="shrink-0 flex justify-center">
-          <button onClick={() => window.location.reload()} className="flex items-center cursor-pointer" aria-label="SimplySip Elixirs home">
+          <button onClick={() => window.location.reload()} className="flex items-center gap-2 sm:gap-2.5 cursor-pointer" aria-label="Simply Sip Elixirs home">
             <img
               src="/images/logo-header.png"
-              alt="SimplySip Elixirs"
+              alt="Simply Sip Elixirs"
               width={180}
               height={240}
               className="h-12 sm:h-14 md:h-16 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
             />
+            <span className="flex flex-col leading-none text-left">
+              <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-sm sm:text-base md:text-xl">Simply Sip</span>
+              <span className="text-[8px] sm:text-[9px] md:text-[10px] tracking-[0.35em] uppercase font-bold brand-gradient-text mt-0.5">Elixirs</span>
+            </span>
           </button>
         </div>
         
@@ -127,7 +131,13 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
             >
               <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
                 <div className="p-5 sm:p-6 bg-white border-b border-black/5 flex items-center justify-between mb-4 sticky top-0 z-10">
-                  <img src="/images/logo-header.png" alt="SimplySip Elixirs" width={180} height={240} className="h-11 w-auto rounded-lg ring-1 ring-black/10 shadow-sm" />
+                  <div className="flex items-center gap-2.5">
+                    <img src="/images/logo-header.png" alt="Simply Sip Elixirs" width={180} height={240} className="h-11 w-auto rounded-lg ring-1 ring-black/10 shadow-sm" />
+                    <span className="flex flex-col leading-none text-left">
+                      <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-base">Simply Sip</span>
+                      <span className="text-[9px] tracking-[0.35em] uppercase font-bold brand-gradient-text mt-0.5">Elixirs</span>
+                    </span>
+                  </div>
                   <button onClick={() => setIsNavOpen(false)} className="p-2 bg-[#F9F8F6] rounded-full text-gray-500 hover:text-black hover:bg-gray-200 transition-colors">
                     <X size={16} />
                   </button>

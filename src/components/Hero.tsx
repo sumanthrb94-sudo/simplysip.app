@@ -125,7 +125,7 @@ export default function Hero({ onSubscribe }: HeroProps) {
             >
               <img
                 src="/images/logo-header.png"
-                alt="SimplySip Elixirs"
+                alt="Simply Sip Elixirs"
                 width={180}
                 height={240}
                 className="h-20 sm:h-24 w-auto rounded-2xl ring-2 ring-white shadow-xl"
