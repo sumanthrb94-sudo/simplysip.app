@@ -73,3 +73,28 @@ html {
   0%   { left: -60%; }
   100% { left: 110%; }
 }
+
+/* Liquid hue — used only by the final call-to-action card */
+.cta-liquid {
+  background-image: linear-gradient(
+    115deg,
+    #E11D2E,
+    #EC1E79,
+    #7A2FF0,
+    #3B5BDB,
+    #2BB673,
+    #E11D2E
+  );
+  background-size: 250% 250%;
+  animation: cta-pan 16s ease infinite;
+}
+
+@keyframes cta-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-liquid { animation: none; }
+}
