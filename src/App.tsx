@@ -637,7 +637,7 @@ export default function App() {
                   initial={{ width: 0 }}
                   animate={{ width: "100%" }}
                   transition={{ duration: 1.2, ease: "easeInOut", delay: 0.2 }}
-                  className="brand-rule absolute bottom-0 left-0"
+                  className="absolute bottom-0 left-0 h-px bg-black/10"
                 />
               </div>
               <div className="text-[9px] uppercase tracking-[0.4em] text-gray-400 mb-8 font-semibold">
@@ -857,8 +857,7 @@ export default function App() {
               }}
             />
 
-            <footer className="relative py-14 flex flex-col items-center gap-4 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
-              <div className="brand-rule absolute top-0 left-0 right-0" />
+            <footer className="py-14 flex flex-col items-center gap-4 text-center text-xs font-medium tracking-wide text-gray-400 bg-white border-t border-black/5">
               <img
                 src="/images/logo-header.png"
                 alt="Simply Sip Elixirs"
@@ -868,12 +867,7 @@ export default function App() {
               />
               <div className="flex flex-col items-center leading-none">
                 <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-xl">Simply Sip</span>
-                <span className="text-[10px] tracking-[0.4em] uppercase font-bold brand-gradient-text mt-1">Elixirs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {['var(--color-mango)','var(--color-crimson)','var(--color-dragon)','var(--color-berry)','var(--color-leaf)'].map((c) => (
-                  <span key={c} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
-                ))}
+                <span className="text-[10px] tracking-[0.4em] uppercase font-semibold text-[#C6A05A] mt-1">Elixirs</span>
               </div>
               <p>(c) 2026 SIMPLY SIP. All rights reserved.</p>
             </footer>

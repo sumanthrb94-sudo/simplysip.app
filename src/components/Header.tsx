@@ -67,7 +67,7 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
             />
             <span className="flex flex-col leading-none text-left">
               <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-sm sm:text-base md:text-xl">Simply Sip</span>
-              <span className="text-[8px] sm:text-[9px] md:text-[10px] tracking-[0.35em] uppercase font-bold brand-gradient-text mt-0.5">Elixirs</span>
+              <span className="text-[8px] sm:text-[9px] md:text-[10px] tracking-[0.35em] uppercase font-semibold text-[#C6A05A] mt-0.5">Elixirs</span>
             </span>
           </button>
         </div>
@@ -103,10 +103,9 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
           ) : (
             <button
               onClick={onAuth}
-              className="group relative text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-full overflow-hidden uppercase shadow-[0_12px_30px_-14px_rgba(236,30,121,0.8)] transition-transform duration-300 hover:scale-105"
+              className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#1D1C1A] hover:bg-black hover:text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-full border border-[#1D1C1A]/80 transition-colors uppercase"
             >
-              <span className="absolute inset-0 brand-gradient-anim" />
-              <span className="relative">Login</span>
+              Login
             </button>
           )}
         </div>
@@ -135,7 +134,7 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
                     <img src="/images/logo-header.png" alt="Simply Sip Elixirs" width={180} height={240} className="h-11 w-auto rounded-lg ring-1 ring-black/10 shadow-sm" />
                     <span className="flex flex-col leading-none text-left">
                       <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-base">Simply Sip</span>
-                      <span className="text-[9px] tracking-[0.35em] uppercase font-bold brand-gradient-text mt-0.5">Elixirs</span>
+                      <span className="text-[9px] tracking-[0.35em] uppercase font-semibold text-[#C6A05A] mt-0.5">Elixirs</span>
                     </span>
                   </div>
                   <button onClick={() => setIsNavOpen(false)} className="p-2 bg-[#F9F8F6] rounded-full text-gray-500 hover:text-black hover:bg-gray-200 transition-colors">
