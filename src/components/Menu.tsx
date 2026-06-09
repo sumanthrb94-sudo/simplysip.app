@@ -207,7 +207,7 @@ function MenuCard({
             type="button"
             disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
             onClick={(e) => { e.stopPropagation(); onIncrement(product); }}
-            className={`h-9 px-6 rounded-full border-2 border-[#1D1C1A] text-[11px] font-bold tracking-[0.15em] uppercase transition-colors ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50' : 'text-[#1D1C1A] hover:bg-[#1D1C1A] hover:text-white'}`}
+            className={`h-9 px-6 rounded-full text-[11px] font-bold tracking-[0.15em] uppercase transition-transform ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'border-2 border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50' : 'cta-liquid text-white hover:scale-[1.03] shadow-[0_12px_26px_-14px_rgba(122,47,240,0.7)]'}`}
           >
             {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Preparing Batch' : 'Add to Cart'}
           </button>
@@ -427,7 +427,7 @@ function ProductPanel({
                     <button
                       disabled={product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)}
                       onClick={() => onIncrement(product)}
-                      className={`w-full h-12 rounded-xl text-sm font-bold tracking-wide transition-colors shadow-sm ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                      className={`w-full h-12 rounded-xl text-sm font-bold tracking-wide transition-transform shadow-sm ${ (product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'cta-liquid text-white hover:scale-[1.02]'}`}
                     >
                       {(product.inStock === false || (product.inventory !== undefined && product.inventory <= 0)) ? 'Preparing Batch' : 'Add to Cart'}
                     </button>
@@ -650,7 +650,7 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
               onClick={() => scrollToSection(slugify(cat))} 
               className={`px-5 py-3 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase shrink-0 transition-all flex items-center gap-2 ${
                 activeSection === slugify(cat)
-                  ? 'bg-[#1D1C1A] text-white shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)]'
+                  ? 'cta-liquid text-white shadow-[0_10px_24px_-10px_rgba(122,47,240,0.6)]'
                   : 'bg-[#F9F8F6] border border-black/5 text-[#1D1C1A] hover:bg-gray-100'
               }`}
             >

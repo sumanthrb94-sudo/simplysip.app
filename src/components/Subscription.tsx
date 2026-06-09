@@ -216,11 +216,7 @@ export default function Subscription({ onSubscribe, subscriptionItems }: Subscri
                     </div>
                     <button
                       onClick={() => onSubscribe(item.id)}
-                      className={`w-full relative z-10 px-6 py-3 rounded-xl font-bold tracking-[0.2em] uppercase text-[10px] transition-all shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] ${
-                        isDarkBg
-                          ? 'bg-white text-[#1D1C1A] hover:bg-gray-100'
-                          : 'bg-[#1D1C1A] text-white hover:bg-black'
-                      }`}
+                      className="cta-liquid w-full relative z-10 px-6 py-3 rounded-xl font-bold tracking-[0.2em] uppercase text-[10px] text-white transition-transform shadow-[0_14px_30px_-14px_rgba(122,47,240,0.7)] hover:scale-[1.02]"
                     >
                       Subscribe Now
                     </button>
