@@ -9,38 +9,15 @@
   --color-porcelain: #F4F1EC;
   --color-ink: #1D1C1A;
   --color-ash: #6F6A63;
-
-  /* Brand logo palette — pulled from the master artwork */
-  --color-mango: #FFB400;   /* pineapple gold */
-  --color-tangerine: #FF7A00;
-  --color-leaf: #43B02A;    /* pineapple leaf green */
-  --color-crimson: #E11D2E; /* juice splash red */
-  --color-dragon: #EC1E79;  /* dragonfruit magenta */
-  --color-berry: #3B5BDB;   /* blueberry / sunglasses blue */
-  --color-melon: #FF4D6D;   /* watermelon pink */
+  --color-gold: #C6A05A;   /* single restrained brand accent */
 }
 
 body {
   font-family: var(--font-sans);
   background-color: var(--color-ivory);
-  /* Warm tropical wash — soft hints of mango, dragonfruit and berry */
-  background-image:
-    radial-gradient(circle at 12% 8%, rgba(255, 180, 0, 0.10), transparent 42%),
-    radial-gradient(circle at 88% 14%, rgba(236, 30, 121, 0.08), transparent 45%),
-    radial-gradient(circle at 50% 100%, rgba(59, 91, 219, 0.07), transparent 55%);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (max-width: 768px) {
-  body {
-    background-attachment: scroll;
-  }
 }
 
 html {
@@ -95,117 +72,4 @@ html {
 @keyframes shimmer-slide {
   0%   { left: -60%; }
   100% { left: 110%; }
-}
-
-/* ============================================================
-   Brand motion graphics — tropical juice palette
-   ============================================================ */
-
-/* Gradient text using the full logo palette */
-.brand-gradient-text {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-mango) 0%,
-    var(--color-tangerine) 22%,
-    var(--color-crimson) 45%,
-    var(--color-dragon) 68%,
-    var(--color-berry) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-
-/* Animated multi-stop gradient that slowly drifts */
-.brand-gradient-anim {
-  background-image: linear-gradient(
-    115deg,
-    var(--color-mango),
-    var(--color-tangerine),
-    var(--color-crimson),
-    var(--color-dragon),
-    var(--color-berry),
-    var(--color-leaf),
-    var(--color-mango)
-  );
-  background-size: 300% 300%;
-  animation: brand-pan 14s ease infinite;
-}
-
-@keyframes brand-pan {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* Thin animated rainbow rule */
-.brand-rule {
-  height: 3px;
-  border-radius: 9999px;
-  background-image: linear-gradient(
-    90deg,
-    var(--color-mango),
-    var(--color-crimson),
-    var(--color-dragon),
-    var(--color-berry),
-    var(--color-leaf),
-    var(--color-mango)
-  );
-  background-size: 200% 100%;
-  animation: brand-pan 8s linear infinite;
-}
-
-/* Floating juice blobs — soft drifting color clouds */
-.juice-blob {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(60px);
-  opacity: 0.55;
-  will-change: transform;
-  pointer-events: none;
-}
-
-@keyframes blob-float-a {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33%      { transform: translate3d(40px, -30px, 0) scale(1.12); }
-  66%      { transform: translate3d(-25px, 25px, 0) scale(0.92); }
-}
-
-@keyframes blob-float-b {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(-45px, 30px, 0) scale(1.15); }
-}
-
-@keyframes blob-float-c {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  40%      { transform: translate3d(30px, 35px, 0) scale(1.1); }
-  75%      { transform: translate3d(-30px, -20px, 0) scale(0.95); }
-}
-
-.blob-a { animation: blob-float-a 18s ease-in-out infinite; }
-.blob-b { animation: blob-float-b 22s ease-in-out infinite; }
-.blob-c { animation: blob-float-c 26s ease-in-out infinite; }
-
-/* Slow vertical bob for floating fruit accents */
-@keyframes fruit-bob {
-  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
-  50%      { transform: translateY(-18px) rotate(calc(var(--rot, 0deg) + 6deg)); }
-}
-.fruit-bob { animation: fruit-bob 7s ease-in-out infinite; }
-
-/* Conic shimmer ring for badges */
-@keyframes spin-slow {
-  to { transform: rotate(360deg); }
-}
-.spin-slow { animation: spin-slow 9s linear infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  .brand-gradient-anim,
-  .brand-rule,
-  .blob-a, .blob-b, .blob-c,
-  .fruit-bob, .spin-slow,
-  .marquee {
-    animation: none !important;
-  }
 }
