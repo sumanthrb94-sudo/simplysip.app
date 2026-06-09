@@ -44,17 +44,18 @@ export default function Hero({ onSubscribe }: HeroProps) {
           transition={{ duration: 1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto"
         >
-          <a 
+          <a
             href="#menu"
-            className="w-full sm:w-auto px-7 sm:px-8 py-4 bg-white text-[#1D1C1A] border border-black/10 rounded-full font-semibold tracking-[0.2em] uppercase text-[11px] hover:border-black/20 hover:shadow-[0_25px_60px_-40px_rgba(0,0,0,0.4)] transition-all duration-300 flex items-center justify-center"
+            className="w-full sm:w-auto px-7 sm:px-8 py-4 bg-white border border-black/10 rounded-full font-semibold tracking-[0.2em] uppercase text-[11px] hover:border-black/20 hover:shadow-[0_25px_60px_-40px_rgba(0,0,0,0.4)] transition-all duration-300 flex items-center justify-center"
           >
-            Explore Menu
+            <span className="liquid-text">Explore Menu</span>
           </a>
-          <button 
+          <button
             onClick={onSubscribe}
-            className="w-full sm:w-auto px-7 sm:px-8 py-4 bg-[#1D1C1A] text-white rounded-full font-semibold tracking-[0.2em] uppercase text-[11px] hover:bg-black transition-colors duration-300"
+            className="group relative w-full sm:w-auto px-7 sm:px-8 py-4 rounded-full font-semibold tracking-[0.2em] uppercase text-[11px] text-white overflow-hidden shadow-[0_18px_45px_-22px_rgba(122,47,240,0.7)] transition-transform duration-300 hover:scale-[1.03]"
           >
-            Select Plan
+            <span className="absolute inset-0 cta-liquid" />
+            <span className="relative">Select Plan</span>
           </button>
         </motion.div>
           </div>
