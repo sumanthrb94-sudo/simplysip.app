@@ -637,8 +637,9 @@ export default function Menu({ cart, menuItems, onIncrement, onDecrement, onChec
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="mb-16 sm:mb-20 text-center"
         >
-          <p className="text-[11px] uppercase tracking-[0.4em] text-[#6F6A63] mb-3">SIMPLY SIP</p>
-          <h2 className="text-3xl sm:text-4xl md:text-6xl font-semibold tracking-tight mb-3 text-[#1D1C1A] font-display">Layered flavours and pure expression.</h2>
+          <p className="text-[11px] uppercase tracking-[0.4em] mb-3 font-bold brand-gradient-text">SIMPLY SIP</p>
+          <h2 className="text-3xl sm:text-4xl md:text-6xl font-semibold tracking-tight mb-4 text-[#1D1C1A] font-display">Layered flavours and pure expression.</h2>
+          <div className="brand-rule w-20 mx-auto mb-4" />
           <p className="text-[11px] sm:text-xs uppercase tracking-[0.3em] text-[#6F6A63] font-medium">Limited Launch Offer {"\u2014"} Grab yours now</p>
         </motion.div>
 

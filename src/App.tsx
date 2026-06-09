@@ -637,7 +637,7 @@ export default function App() {
                   initial={{ width: 0 }}
                   animate={{ width: "100%" }}
                   transition={{ duration: 1.2, ease: "easeInOut", delay: 0.2 }}
-                  className="absolute bottom-0 left-0 h-px bg-black/10"
+                  className="brand-rule absolute bottom-0 left-0"
                 />
               </div>
               <div className="text-[9px] uppercase tracking-[0.4em] text-gray-400 mb-8 font-semibold">
@@ -857,7 +857,8 @@ export default function App() {
               }}
             />
 
-            <footer className="py-12 flex flex-col items-center gap-4 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
+            <footer className="relative py-14 flex flex-col items-center gap-4 text-center text-xs font-medium tracking-wide text-gray-400 bg-white">
+              <div className="brand-rule absolute top-0 left-0 right-0" />
               <img
                 src="/images/logo-header.png"
                 alt="SimplySip Elixirs"
@@ -865,6 +866,11 @@ export default function App() {
                 height={240}
                 className="h-16 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
               />
+              <div className="flex items-center gap-1.5">
+                {['var(--color-mango)','var(--color-crimson)','var(--color-dragon)','var(--color-berry)','var(--color-leaf)'].map((c) => (
+                  <span key={c} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
+                ))}
+              </div>
               <p>(c) 2026 SIMPLY SIP. All rights reserved.</p>
             </footer>
           </motion.div>

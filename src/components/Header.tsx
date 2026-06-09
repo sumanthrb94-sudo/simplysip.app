@@ -99,9 +99,10 @@ export default function Header({ user, onAuth, onLogout, isAdmin, adminPendingCo
           ) : (
             <button
               onClick={onAuth}
-              className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#1D1C1A] hover:bg-black hover:text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-full border-2 border-[#1D1C1A] transition-colors uppercase"
+              className="group relative text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-full overflow-hidden uppercase shadow-[0_12px_30px_-14px_rgba(236,30,121,0.8)] transition-transform duration-300 hover:scale-105"
             >
-              Login
+              <span className="absolute inset-0 brand-gradient-anim" />
+              <span className="relative">Login</span>
             </button>
           )}
         </div>
