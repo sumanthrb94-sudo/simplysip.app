@@ -861,11 +861,15 @@ export default function App() {
               <div className="brand-rule absolute top-0 left-0 right-0" />
               <img
                 src="/images/logo-header.png"
-                alt="SimplySip Elixirs"
+                alt="Simply Sip Elixirs"
                 width={180}
                 height={240}
                 className="h-16 w-auto rounded-xl ring-1 ring-black/10 shadow-sm"
               />
+              <div className="flex flex-col items-center leading-none">
+                <span className="font-display font-semibold tracking-tight text-[#1D1C1A] text-xl">Simply Sip</span>
+                <span className="text-[10px] tracking-[0.4em] uppercase font-bold brand-gradient-text mt-1">Elixirs</span>
+              </div>
               <div className="flex items-center gap-1.5">
                 {['var(--color-mango)','var(--color-crimson)','var(--color-dragon)','var(--color-berry)','var(--color-leaf)'].map((c) => (
                   <span key={c} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
